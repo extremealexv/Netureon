@@ -40,7 +40,7 @@ def main_page():
                 print(f"Moving device to unknown: {mac}")
                 
                 cur.execute("""
-                    SELECT last_ip, device_name, last_seen, first_seen 
+                    SELECT last_ip::text, device_name, last_seen, first_seen 
                     FROM known_devices 
                     WHERE mac_address = %s::macaddr
                 """, (mac,))
@@ -52,7 +52,7 @@ def main_page():
                     cur.execute("""
                         INSERT INTO unknown_devices 
                         (mac_address, last_ip, first_seen, last_seen, threat_level, notes)
-                        VALUES (%s::macaddr, %s, %s, %s, %s, %s)
+                        VALUES (%s::macaddr, %s::inet, %s, %s, %s, %s)
                         RETURNING mac_address::text
                     """, (
                         mac, device[0], device[3] or datetime.now(),
