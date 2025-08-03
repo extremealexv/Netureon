@@ -1,102 +1,336 @@
-# 📘 NetGuard Project Summary
+# 📘 NetGuard Technical Documentation
 **Version:** 1.0  
 **Last Updated:** August 3, 2025  
 **Author:** Alexander Vasilyev
 
 ---
 
-## 🛠️ Purpose
-NetGuard is a comprehensive local network monitoring and management system built with Flask and PostgreSQL. It provides real-time device detection, automated profiling, and alert notifications for network administrators. The system helps maintain network security by tracking known devices and promptly alerting about new connections.
+## 🎯 Overview
+NetGuard is a comprehensive local network monitoring and security management system built with Python, Flask, and PostgreSQL. This document provides detailed technical information about the system's architecture, components, and configuration options.
 
 ---
 
-## 🚀 Quick Start
+## 🏗️ System Architecture
 
-### Prerequisites
-- Python 3.11 or higher
-- PostgreSQL 13 or higher
-- Git (for installation)
-- Linux/Unix for systemd services (optional)
+### Core Services
+1. **Network Monitor Service**
+   - Real-time network scanning
+   - Device discovery and tracking
+   - Connection logging
+   - Service: `netguard.service` (Linux) / `NetGuard` (Windows)
 
-### Installation
-1. Clone the repository:
+2. **Alert Daemon Service**
+   - Security event monitoring
+   - Email notifications
+   - Threat assessment
+   - Service: `netguard-alerts.service` (Linux) / `NetGuardAlerts` (Windows)
+
+3. **Web Interface**
+   - Real-time dashboard
+   - Device management
+   - Alert configuration
+   - Running on Flask with PostgreSQL
+
+### Data Flow
+```mermaid
+graph LR
+    A[Network Scanner] -->|Device Discovery| B[Device Profiler]
+    B -->|Profile Data| C[Database]
+    D[Alert Daemon] -->|Monitors| C
+    D -->|Sends| E[Email Alerts]
+    F[Web UI] -->|Reads/Writes| C
+```
+
+---
+
+## �️ Installation & Setup
+
+### System Requirements
+- **Hardware:**
+  - CPU: 2+ cores recommended
+  - RAM: 2GB minimum, 4GB recommended
+  - Storage: 1GB+ for database and logs
+  
+- **Software:**
+  - Python 3.8 or higher
+  - PostgreSQL 13 or higher
+  - Git (for installation)
+  - SMTP server access
+  - Administrator/root access
+
+### Detailed Setup Steps
+
+1. **System Preparation**
+   ```bash
+   # Linux prerequisites
+   sudo apt update
+   sudo apt install python3-dev postgresql postgresql-contrib libpq-dev
+
+   # Windows prerequisites
+   # Install PostgreSQL from postgresql.org
+   # Install Python from python.org
+   ```
+
+2. **Application Installation**
    ```bash
    git clone https://github.com/extremealexv/NetGuard.git
    cd NetGuard
+   
+   # Linux
+   chmod +x setup.sh
+   ./setup.sh
+   
+   # Windows
+   .\setup.ps1
    ```
 
-2. Set up the environment:
-   - Windows: `.\setup.ps1`
-   - Linux/Unix: `./setup.sh`
-
-3. Configure database:
-   ```bash
-   psql -U postgres -f schema.sql
-   ```
-
-4. Update `.env` with your credentials:
-   ```
+3. **Configuration Options**
+   The `.env` file supports the following settings:
+   ```ini
+   # Database Configuration
    DB_NAME=netguard
    DB_USER=postgres
    DB_PASSWORD=your_password
    DB_HOST=localhost
    DB_PORT=5432
-   ```
 
-5. Start the services:
-   - Development: `python webui/app.py`
-   - Production: Enable systemd services (see Services section)
+   # Email Configuration
+   SMTP_SERVER=smtp.example.com
+   SMTP_PORT=587
+   SMTP_USER=alerts@example.com
+   SMTP_PASSWORD=your_smtp_password
+   EMAIL_FROM=netguard@example.com
+   EMAIL_TO=admin@example.com
+
+   # Flask Configuration
+   FLASK_SECRET_KEY=generated_secret_key
+   ```
 
 ---
 
-## 🗂️ Core Components
+## � Component Details
 
-### ✅ Web Interface (`webui/app.py`)
-- **Dashboard Features:**
-  - Real-time device status monitoring
-  - Device review and classification
-  - Historical connection logs
-  - Alert management interface
+### 1. Network Scanner (`net_scan.py`)
+```python
+class NetworkScanner:
+    def scan_network(self):
+        """Performs network scan using ARP"""
+    
+    def process_device(self, mac, ip):
+        """Processes discovered devices"""
+```
 
-- **Routes:**
-  - `/` - Main dashboard with known devices
-  - `/review` - New device review interface
-  - `/api/devices` - JSON API for device data
-  - `/api/alerts` - JSON API for alert status
+**Features:**
+- ARP-based device discovery
+- MAC address validation
+- Vendor identification
+- Configurable scan intervals
+- Low network impact design
 
-- **Templates:**
-  - `main.html` - Dashboard layout
-  - `review.html` - Device review interface
+### 2. Device Profiler (`device_profiler.py`)
+```python
+class DeviceProfiler:
+    def profile_device(self, mac, ip):
+        """Creates comprehensive device profile"""
+    
+    def get_mac_vendor(self, mac):
+        """Queries MAC vendor databases"""
+```
 
-### 📡 Network Scanner (`net_scan.py`)
-- **Scanning Features:**
-  - ARP-based device discovery via Scapy
-  - Automatic subnet detection
-  - MAC and IP address logging
-  - Integration with device profiler
+**Capabilities:**
+- Vendor identification
+- OS fingerprinting
+- Service detection
+- Behavioral analysis
+- Profile history tracking
 
-- **Database Operations:**
-  - Real-time discovery logging
-  - New device detection
-  - Known device status updates
+### 3. Alert System (`alert_daemon.py`)
+```python
+class AlertDaemon:
+    def monitor_events(self):
+        """Monitors for security events"""
+    
+    def send_alert(self, event):
+        """Sends email notifications"""
+```
 
-- **Performance:**
-  - Non-blocking async operations
-  - Configurable scan intervals
-  - Low network overhead
+**Alert Types:**
+- New device detection
+- Unauthorized access attempts
+- Service changes
+- Connection patterns
+- System status
 
-### 🔍 Device Profiler (`device_profiler.py`)
-- **Device Information:**
-  - MAC vendor lookup via macvendors.com API
-  - DNS hostname resolution
-  - Port scanning (common ports)
-  - Device type inference
+### 4. Web Interface (`webui/`)
+**Core Features:**
+- Real-time monitoring
+- Device management
+- Alert configuration
+- Historical data view
+- User authentication
 
-- **Methods:**
-  - `get_mac_vendor()`: Vendor identification
-  - `get_hostname()`: DNS resolution
-  - `scan_open_ports()`: Service detection
-  - `profile_device()`: Complete device analysis
+**API Endpoints:**
+```
+GET  /api/devices       - List all devices
+POST /api/devices       - Add new device
+GET  /api/alerts       - List recent alerts
+POST /api/alerts/rules - Configure alert rules
+```
+
+---
+
+## 📊 Database Schema
+
+### Tables
+1. **devices**
+   ```sql
+   CREATE TABLE devices (
+       id SERIAL PRIMARY KEY,
+       mac macaddr NOT NULL,
+       hostname VARCHAR(255),
+       vendor VARCHAR(255),
+       first_seen TIMESTAMP,
+       last_seen TIMESTAMP
+   );
+   ```
+
+2. **connections**
+   ```sql
+   CREATE TABLE connections (
+       id SERIAL PRIMARY KEY,
+       device_id INTEGER REFERENCES devices(id),
+       ip inet NOT NULL,
+       timestamp TIMESTAMP DEFAULT NOW()
+   );
+   ```
+
+3. **alerts**
+   ```sql
+   CREATE TABLE alerts (
+       id SERIAL PRIMARY KEY,
+       type VARCHAR(50),
+       message TEXT,
+       timestamp TIMESTAMP,
+       acknowledged BOOLEAN
+   );
+   ```
+
+---
+
+## 🔧 Maintenance
+
+### Backup Procedures
+1. Database Backup:
+   ```bash
+   pg_dump netguard > backup.sql
+   ```
+
+2. Configuration Backup:
+   ```bash
+   cp .env .env.backup
+   ```
+
+### Log Management
+- Location: `/var/log/netguard/` (Linux)
+- Rotation: Daily with 30-day retention
+- Format: JSON for easy parsing
+
+### Performance Tuning
+- Scanner interval: 5-15 minutes recommended
+- Database indexes on frequently accessed fields
+- Connection pooling for web interface
+- Regular vacuum and analyze operations
+
+---
+
+## 🔒 Security Considerations
+
+### Network Security
+- Least privilege principle
+- Encrypted communications
+- Rate limiting on API endpoints
+- Regular security updates
+
+### Database Security
+- Strong password policies
+- Connection encryption
+- Regular backups
+- Access control
+
+### Access Control
+- Role-based authentication
+- API key management
+- Session timeout settings
+- Audit logging
+
+---
+
+## 🔄 Upgrading
+
+### Version Update Process
+1. Backup database and configs
+2. Pull latest code
+3. Run database migrations
+4. Update configuration
+5. Restart services
+
+### Migration Scripts
+Located in `/migrations/` directory:
+```sql
+-- Example migration
+ALTER TABLE devices ADD COLUMN category VARCHAR(50);
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Common Issues
+1. **Scanner not detecting devices**
+   - Check network interface
+   - Verify permissions
+   - Review firewall rules
+
+2. **Email alerts not sending**
+   - Verify SMTP settings
+   - Check network connectivity
+   - Review error logs
+
+3. **Database connection issues**
+   - Verify credentials
+   - Check PostgreSQL service
+   - Test network connectivity
+
+### Diagnostic Tools
+```bash
+# Check service status
+sudo systemctl status netguard
+
+# View logs
+tail -f /var/log/netguard/netguard.log
+
+# Test database connection
+psql -U postgres -d netguard -c "SELECT version();"
+```
+
+---
+
+## 📚 Additional Resources
+
+### API Documentation
+Full API documentation available at `/docs/api/`
+
+### Contributing Guidelines
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development standards
+
+### Support Channels
+- GitHub Issues
+- Email: support@netguard.local
+- Documentation Wiki
+
+---
+
+Made with 🛡️ by Alexander Vasilyev
 
 ---
 
