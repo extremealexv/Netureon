@@ -1,5 +1,7 @@
 # requirements.txt
-psycopg2-binary==2.9.9
-netifaces==0.11.0
-scapy==2.5.0
-python-dotenv==1.0.0
+# Core dependencies
+psycopg2-binary==2.9.9  # PostgreSQL adapter
+netifaces==0.11.0       # Network interface information
+scapy==2.5.0           # Network packet manipulation
+python-dotenv==1.0.0   # Environment variable management
+requests==2.31.0       # HTTP requests
