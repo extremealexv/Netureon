@@ -45,7 +45,7 @@ def main_page():
                     )
                     SELECT last_ip::text, device_name, last_seen, first_seen 
                     FROM known_devices 
-                    WHERE mac_address = (SELECT addr FROM mac_addr)
+                    WHERE mac_address::macaddr = (SELECT addr FROM mac_addr)
                 """, (mac,))
                 device = cur.fetchone()
                 
@@ -53,9 +53,19 @@ def main_page():
                     print(f"Found device info: {device}")
                     # Insert into unknown_devices
                     cur.execute("""
+                        WITH input_data AS (
+                            SELECT 
+                                %s::macaddr as mac,
+                                %s::inet as ip,
+                                %s::timestamp as first_seen,
+                                %s::timestamp as last_seen,
+                                %s as threat_level,
+                                %s as notes
+                        )
                         INSERT INTO unknown_devices 
                         (mac_address, last_ip, first_seen, last_seen, threat_level, notes)
-                        VALUES (%s::macaddr, %s::inet, %s, %s, %s, %s)
+                        SELECT mac, ip, first_seen, last_seen, threat_level, notes
+                        FROM input_data
                         RETURNING mac_address::text
                     """, (
                         mac, device[0], device[3] or datetime.now(),
@@ -87,7 +97,12 @@ def main_page():
     
     # Get known devices with active status
     cur.execute("""
-        SELECT k.device_name, k.mac_address::text, k.device_type, k.notes, k.last_seen, k.last_ip,
+        SELECT k.device_name, 
+               k.mac_address::text, 
+               k.device_type, 
+               k.notes, 
+               k.last_seen, 
+               k.last_ip::text,
                EXISTS(
                    SELECT 1 FROM discovery_log d 
                    WHERE d.mac_address::macaddr = k.mac_address::macaddr 

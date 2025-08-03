@@ -72,8 +72,21 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 def send_email(body):
-    if not all([SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM, EMAIL_TO]):
-        print("Email configuration incomplete. Skipping email notification.")
+    missing = []
+    for var, name in [
+        (SMTP_SERVER, 'SMTP_SERVER'),
+        (SMTP_PORT, 'SMTP_PORT'),
+        (SMTP_USER, 'SMTP_USER'),
+        (SMTP_PASSWORD, 'SMTP_PASSWORD'),
+        (EMAIL_FROM, 'EMAIL_FROM'),
+        (EMAIL_TO, 'EMAIL_TO')
+    ]:
+        if not var:
+            missing.append(name)
+    
+    if missing:
+        print(f"Email configuration incomplete. Missing: {', '.join(missing)}")
+        print("Run setup_email.sh to configure email settings")
         return
         
     try:
@@ -126,12 +139,11 @@ def check_for_unknown_devices():
                     FROM discovery_log 
                     WHERE mac_address::macaddr = dl.mac_address::macaddr
                 ) as detection_count,
-                dp.hostname,
-                dp.vendor,
-                dp.open_ports
+                NULL as hostname,
+                NULL as vendor,
+                NULL as open_ports
             FROM discovery_log dl
             JOIN unknown_devices ud ON dl.mac_address::macaddr = ud.mac_address
-            LEFT JOIN device_profiles dp ON dl.mac_address::macaddr = dp.mac_address
             WHERE dl.timestamp > NOW() - INTERVAL '5 minutes'
         """)
         unknown_connections = cursor.fetchall()
