@@ -75,10 +75,13 @@ def main_page():
                     inserted_mac = cur.fetchone()[0]
                     print(f"Inserted into unknown_devices: {inserted_mac}")
                     
-                    # Delete from known_devices
+                    # Delete from known_devices with proper type casting
                     cur.execute("""
+                        WITH mac_addr AS (
+                            SELECT %s::macaddr as addr
+                        )
                         DELETE FROM known_devices 
-                        WHERE mac_address = %s::macaddr
+                        WHERE mac_address::macaddr = (SELECT addr FROM mac_addr)
                         RETURNING mac_address::text
                     """, (mac,))
                     deleted_mac = cur.fetchone()[0]
@@ -87,9 +90,15 @@ def main_page():
             flash(f'{len(selected_devices)} devices marked as unknown', 'warning')
             
         elif action == 'delete':
-            # Remove devices
+            # Remove devices with proper type casting
             for mac in selected_devices:
-                cur.execute("DELETE FROM known_devices WHERE mac_address = %s::macaddr", (mac,))
+                cur.execute("""
+                    WITH mac_addr AS (
+                        SELECT %s::macaddr as addr
+                    )
+                    DELETE FROM known_devices 
+                    WHERE mac_address::macaddr = (SELECT addr FROM mac_addr)
+                """, (mac,))
             
             flash(f'Removed {len(selected_devices)} devices', 'danger')
         
@@ -149,10 +158,13 @@ def review_page():
                 for mac in selected_devices:
                     # Move to known devices
                     cur.execute("""
-                        WITH device AS (
+                        WITH input_mac AS (
+                            SELECT %s::macaddr as addr
+                        ),
+                        device AS (
                             SELECT device_name, mac_address::macaddr, device_type, last_seen, last_ip, notes
                             FROM new_devices
-                            WHERE mac_address = %s
+                            WHERE mac_address::macaddr = (SELECT addr FROM input_mac)
                         )
                         INSERT INTO known_devices 
                         (device_name, mac_address, device_type, last_seen, last_ip, notes)
