@@ -18,17 +18,17 @@ DB_CONFIG = {
 }
 
 # Email config
-EMAIL_FROM = "alexander.vasilyev83@gmail.com"
-EMAIL_TO = "aleksandr@vasilyev.tech"
-EMAIL_SUBJECT = "Intrusion Alert"
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USER = "alexander.vasilyev83@gmail.com"
-SMTP_PASSWORD = "ghyw apii fowv lwgf"
+EMAIL_FROM = os.getenv('EMAIL_FROM')
+EMAIL_TO = os.getenv('EMAIL_TO')
+EMAIL_SUBJECT = os.getenv('EMAIL_SUBJECT', 'Intrusion Alert')
+SMTP_SERVER = os.getenv('SMTP_SERVER')
+SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+SMTP_USER = os.getenv('SMTP_USER')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
 
 # Telegram config
-# TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-# TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID"
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 def send_email(body):
     try:
@@ -48,17 +48,99 @@ def send_email(body):
 #     except Exception as e:
 #         print(f"Telegram error: {e}")
 
+def format_device_info(mac, ip, hostname, vendor, ports):
+    """Format device information for alerts."""
+    return f"""
+🔍 Device Details:
+MAC: {mac}
+IP: {ip}
+Hostname: {hostname or 'Unknown'}
+Vendor: {vendor or 'Unknown'}
+Open Ports: {', '.join(map(str, ports)) if ports else 'None detected'}
+    """.strip()
+
+def check_for_unknown_devices():
+    """Check discovery_log for any connections from unknown devices."""
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        
+        # Get recent connections that match unknown devices with detailed info
+        cursor.execute("""
+            SELECT 
+                dl.mac_address, 
+                dl.ip_address, 
+                dl.timestamp, 
+                ud.threat_level, 
+                ud.notes,
+                ud.first_seen,
+                (
+                    SELECT COUNT(*) 
+                    FROM discovery_log 
+                    WHERE mac_address = dl.mac_address
+                ) as detection_count,
+                dp.hostname,
+                dp.vendor,
+                dp.open_ports
+            FROM discovery_log dl
+            JOIN unknown_devices ud ON dl.mac_address = ud.mac_address
+            LEFT JOIN device_profiles dp ON dl.mac_address = dp.mac_address
+            WHERE dl.timestamp > NOW() - INTERVAL '5 minutes'
+        """)
+        unknown_connections = cursor.fetchall()
+
+        # Create alerts for unknown device connections
+        for mac, ip, timestamp, threat_level, notes, first_seen, count, hostname, vendor, ports in unknown_connections:
+            # Update last_seen in unknown_devices
+            cursor.execute("""
+                UPDATE unknown_devices 
+                SET last_seen = %s, last_ip = %s 
+                WHERE mac_address = %s
+            """, (timestamp, ip, mac))
+
+            device_info = format_device_info(mac, ip, hostname, vendor, ports or [])
+            alert_message = f"""
+⚠️ THREAT DETECTED: {threat_level.upper()} Risk Device
+{device_info}
+
+📊 History:
+First Seen: {first_seen}
+Total Detections: {count}
+
+🚫 Threat Notes: 
+{notes}
+            """.strip()
+
+            cursor.execute("""
+                INSERT INTO alerts (device_id, detected_at, alert_type, message)
+                VALUES (%s, %s, 'unknown_device', %s)
+                ON CONFLICT DO NOTHING
+            """, (mac, timestamp, alert_message))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error checking unknown devices: {e}")
+
 def check_alerts():
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
-        cursor.execute("SELECT id, device_id, detected_at FROM alerts")
+        cursor.execute("SELECT id, device_id, detected_at, alert_type, message FROM alerts")
         rows = cursor.fetchall()
 
-        for alert_id, device_id, timestamp in rows:
-            message = f" New Device Detected: {device_id}\n Time: {timestamp}"
-            send_email(message)
-            # send_telegram(message)
+        for alert_id, device_id, timestamp, alert_type, message in rows:
+            # Format message based on alert type
+            if alert_type == 'new_device':
+                body = f"🆕 New Device Detected\nMAC: {device_id}\nTime: {timestamp}"
+            elif alert_type == 'unknown_device':
+                body = f"⚠️ ALERT: Known Threat Device Connected\n{message}\nDetected at: {timestamp}"
+            else:
+                body = f"Alert: {message}\nDevice: {device_id}\nTime: {timestamp}"
+
+            send_email(body)
+            # send_telegram(body)
             cursor.execute("DELETE FROM alerts WHERE id = %s", (alert_id,))
 
         conn.commit()
@@ -69,6 +151,8 @@ def check_alerts():
         print(f"Database error: {e}")
 
 if __name__ == "__main__":
+    print("🔔 Alert daemon started...")
     while True:
-        check_alerts()
+        check_for_unknown_devices()  # Check for unknown device connections
+        check_alerts()               # Process pending alerts
         time.sleep(10)  # Check every 10 seconds

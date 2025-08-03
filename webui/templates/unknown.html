@@ -1,0 +1,150 @@
+{% extends 'main.html' %}
+
+{% block content %}
+<div class="container">
+    <h2>⚠️ Unknown Devices</h2>
+    <form method="post" action="/unknown">
+        <div class="device-grid">
+            {% for device in devices %}
+            <div class="device-card threat-{{ device.threat_level }}">
+                <input type="checkbox" name="selected_devices" value="{{ device.mac }}">
+                <div class="device-info">
+                    <h3>{{ device.hostname or 'Unknown Device' }}</h3>
+                    <div class="threat-badge {{ device.threat_level }}">
+                        {{ device.threat_level.upper() }}
+                    </div>
+                    <p>MAC: {{ device.mac }}</p>
+                    <p>Last IP: {{ device.last_ip }}</p>
+                    <p>First Seen: {{ device.first_seen }}</p>
+                    <p>Last Seen: {{ device.last_seen }}</p>
+                    <p>Times Detected: {{ device.detection_count }}</p>
+                    <p class="notes">Notes: {{ device.notes }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="action-buttons">
+            <button type="submit" name="action" value="approve" class="btn btn-success">
+                ✅ Move to Known Devices
+            </button>
+            <button type="submit" name="action" value="update" class="btn btn-warning">
+                📝 Update Threat Level
+            </button>
+            <button type="submit" name="action" value="delete" class="btn btn-danger">
+                🗑️ Remove from List
+            </button>
+            <select name="threat_level" class="form-select">
+                <option value="low">Low Risk</option>
+                <option value="medium" selected>Medium Risk</option>
+                <option value="high">High Risk</option>
+            </select>
+            <input type="text" name="notes" placeholder="Update notes" class="form-control">
+        </div>
+    </form>
+</div>
+
+<style>
+.device-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.device-card {
+    border: 1px solid #ddd;
+    padding: 1rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: flex-start;
+}
+
+.threat-high {
+    border-left: 5px solid #dc3545;
+    background-color: #fff5f5;
+}
+
+.threat-medium {
+    border-left: 5px solid #ffc107;
+    background-color: #fffbeb;
+}
+
+.threat-low {
+    border-left: 5px solid #0dcaf0;
+    background-color: #f0f9ff;
+}
+
+.device-info {
+    margin-left: 1rem;
+    flex-grow: 1;
+}
+
+.threat-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.threat-badge.high {
+    background-color: #dc3545;
+    color: white;
+}
+
+.threat-badge.medium {
+    background-color: #ffc107;
+    color: black;
+}
+
+.threat-badge.low {
+    background-color: #0dcaf0;
+    color: white;
+}
+
+.notes {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-top: 2rem;
+    flex-wrap: wrap;
+}
+
+.btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-success {
+    background-color: #198754;
+    color: white;
+}
+
+.btn-warning {
+    background-color: #ffc107;
+    color: black;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.form-select, .form-control {
+    max-width: 200px;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+</style>
+{% endblock %}
