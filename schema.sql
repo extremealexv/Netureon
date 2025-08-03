@@ -22,6 +22,21 @@ CREATE TABLE discovery_log (
 -- Optional index for faster lookup by MAC address
 CREATE INDEX idx_discovery_mac ON discovery_log(mac_address);
 
+-- Table for storing alerts
+CREATE TABLE alerts (
+    id SERIAL PRIMARY KEY,
+    device_id VARCHAR(17) NOT NULL, -- This will store the MAC address
+    detected_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    alert_type TEXT CHECK (alert_type IN ('new_device', 'unknown_device')),
+    details TEXT NOT NULL,
+    severity TEXT CHECK (severity IN ('low', 'medium', 'high')) DEFAULT 'medium',
+    is_resolved BOOLEAN DEFAULT FALSE
+);
+
+-- Create index for faster alert lookups
+CREATE INDEX idx_alerts_device ON alerts(device_id);
+CREATE INDEX idx_alerts_type ON alerts(alert_type);
+
 -- 3. Table for newly discovered devices pending review
 CREATE TABLE new_devices (
     id SERIAL PRIMARY KEY,

@@ -173,108 +173,139 @@ def unknown_devices():
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
     
-    if request.method == 'POST':
-        selected_devices = request.form.getlist('selected_devices')
-        action = request.form.get('action')
-        
-        if not selected_devices:
-            flash('Please select at least one device', 'warning')
-            return redirect(url_for('unknown_devices'))
-        
-        if action == 'update_threat':
-            threat_level = request.form.get('threat_level', 'medium')
-            notes = request.form.get('notes', '')
+    try:
+        if request.method == 'POST':
+            selected_devices = request.form.getlist('selected_devices')
+            action = request.form.get('action')
             
-            for mac in selected_devices:
-                cur.execute("""
-                    UPDATE unknown_devices 
-                    SET threat_level = %s,
-                        notes = CASE 
-                            WHEN notes IS NULL OR notes = '' THEN %s
-                            ELSE notes || '. ' || %s
-                        END
-                    WHERE mac_address = %s::macaddr
-                """, (threat_level, notes, notes, mac))
+            if not selected_devices:
+                flash('Please select at least one device', 'warning')
+                return redirect(url_for('unknown_devices'))
             
-            flash(f'Updated threat level for {len(selected_devices)} devices', 'info')
-            
-        elif action == 'delete':
-            for mac in selected_devices:
-                cur.execute("DELETE FROM unknown_devices WHERE mac_address = %s::macaddr", (mac,))
-            flash(f'Removed {len(selected_devices)} devices', 'success')
-            
-        elif action == 'approve':
-            notes = request.form.get('notes', '')
-            
-            for mac in selected_devices:
-                # Get device info
-                cur.execute("""
-                    SELECT last_ip, first_seen, last_seen
-                    FROM unknown_devices 
-                    WHERE mac_address = %s::macaddr
-                """, (mac,))
-                device = cur.fetchone()
+            if action == 'update_threat':
+                threat_level = request.form.get('threat_level', 'medium')
+                notes = request.form.get('notes', '')
                 
-                if device:
-                    # Move to known devices
-                    cur.execute("""
-                        INSERT INTO known_devices 
-                        (mac_address, last_ip, first_seen, last_seen, notes)
-                        VALUES (%s::macaddr, %s, %s, %s, %s)
-                    """, (
-                        mac, device[0], device[1],
-                        device[2], f"Moved from unknown devices. {notes if notes else ''}"
-                    ))
-                    
-                    # Delete from unknown devices
-                    cur.execute("DELETE FROM unknown_devices WHERE mac_address = %s::macaddr", (mac,))
-            
-            flash(f'Moved {len(selected_devices)} devices to known devices', 'success')
+                updated = 0
+                for mac in selected_devices:
+                    try:
+                        cur.execute("""
+                            UPDATE unknown_devices 
+                            SET threat_level = %s,
+                                notes = CASE 
+                                    WHEN notes IS NULL OR notes = '' THEN %s
+                                    ELSE notes || '. ' || %s
+                                END
+                            WHERE mac_address::text = %s
+                        """, (threat_level, notes, notes, mac))
+                        updated += cur.rowcount
+                    except psycopg2.Error as e:
+                        flash(f'Error updating device {mac}: {str(e)}', 'error')
+                
+                conn.commit()
+                if updated > 0:
+                    flash(f'Updated threat level for {updated} devices', 'info')
+                
+            elif action == 'delete':
+                deleted = 0
+                for mac in selected_devices:
+                    try:
+                        cur.execute("DELETE FROM unknown_devices WHERE mac_address::text = %s", (mac,))
+                        deleted += cur.rowcount
+                    except psycopg2.Error as e:
+                        flash(f'Error deleting device {mac}: {str(e)}', 'error')
+                
+                conn.commit()
+                if deleted > 0:
+                    flash(f'Removed {deleted} devices', 'success')
+                
+            elif action == 'approve':
+                notes = request.form.get('notes', '')
+                moved = 0
+                
+                for mac in selected_devices:
+                    try:
+                        # Get device info
+                        cur.execute("""
+                            SELECT last_ip, first_seen, last_seen
+                            FROM unknown_devices 
+                            WHERE mac_address::text = %s
+                        """, (mac,))
+                        device = cur.fetchone()
+                        
+                        if device:
+                            # Move to known devices
+                            cur.execute("""
+                                INSERT INTO known_devices 
+                                (mac_address, last_ip, first_seen, last_seen, notes)
+                                VALUES (%s::macaddr, %s, %s, %s, %s)
+                            """, (
+                                mac, device[0], device[1],
+                                device[2], f"Moved from unknown devices. {notes if notes else ''}"
+                            ))
+                            
+                            # Delete from unknown devices only if insert was successful
+                            cur.execute("DELETE FROM unknown_devices WHERE mac_address::text = %s", (mac,))
+                            moved += 1
+                    except psycopg2.Error as e:
+                        flash(f'Error moving device {mac}: {str(e)}', 'error')
+                        conn.rollback()  # Rollback the failed transaction
+                        continue
+                
+                conn.commit()
+                if moved > 0:
+                    flash(f'Moved {moved} devices to known devices', 'success')
         
-        conn.commit()
+        # Get unknown devices with their detection count
+        cur.execute("""
+            SELECT 
+                ud.mac_address::text,
+                ud.last_ip,
+                ud.first_seen::text,
+                ud.last_seen::text,
+                COALESCE(ud.threat_level, 'medium'),
+                COALESCE(ud.notes, ''),
+                COALESCE((
+                    SELECT COUNT(*) 
+                    FROM discovery_log 
+                    WHERE mac_address::macaddr = ud.mac_address::macaddr
+                ), 0) as detection_count,
+                'Unknown' as hostname
+            FROM unknown_devices ud
+            ORDER BY 
+                CASE ud.threat_level
+                    WHEN 'high' THEN 1
+                    WHEN 'medium' THEN 2
+                    WHEN 'low' THEN 3
+                    ELSE 4
+                END,
+                ud.last_seen DESC NULLS LAST
+        """)
+        unknown_devices = cur.fetchall()
+        
+        devices = [
+            {
+                'mac': dev[0],
+                'last_ip': dev[1] or 'Unknown',
+                'first_seen': dev[2] or 'Never',
+                'last_seen': dev[3] or 'Never',
+                'threat_level': dev[4],
+                'notes': dev[5] or 'No notes',
+                'detection_count': dev[6],
+                'hostname': dev[7]
+            }
+            for dev in unknown_devices
+        ]
+        
+    except psycopg2.Error as e:
+        flash(f'Database error: {str(e)}', 'error')
+        devices = []
+        
+    finally:
+        cur.close()
+        conn.close()
     
-    # Get unknown devices with their detection count
-    cur.execute("""
-        SELECT 
-            ud.mac_address,
-            ud.last_ip,
-            ud.first_seen,
-            ud.last_seen,
-            ud.threat_level,
-            ud.notes,
-            (
-                SELECT COUNT(*) 
-                FROM discovery_log 
-                WHERE mac_address::macaddr = ud.mac_address::macaddr
-            ) as detection_count,
-            'Unknown' as hostname
-        FROM unknown_devices ud
-        ORDER BY 
-            CASE ud.threat_level
-                WHEN 'high' THEN 1
-                WHEN 'medium' THEN 2
-                WHEN 'low' THEN 3
-            END,
-            ud.last_seen DESC
-    """)
-    unknown_devices = cur.fetchall()
-    
-    cur.close()
-    conn.close()
-    
-    devices = [
-        {
-            'mac': dev[0],
-            'last_ip': dev[1],
-            'first_seen': dev[2],
-            'last_seen': dev[3],
-            'threat_level': dev[4],
-            'notes': dev[5],
-            'detection_count': dev[6],
-            'hostname': dev[7]
-        }
-        for dev in unknown_devices
-    ]
+    return render_template('unknown.html', devices=devices)
     
     return render_template('unknown.html', devices=devices)
 

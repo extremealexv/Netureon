@@ -98,8 +98,9 @@ def check_for_unknown_devices():
                 WHERE mac_address = %s
             """, (timestamp, ip, mac))
 
+            # Format complete alert details
             device_info = format_device_info(mac, ip, hostname, vendor, ports or [])
-            alert_message = f"""
+            alert_details = f"""
 ⚠️ THREAT DETECTED: {threat_level.upper()} Risk Device
 {device_info}
 
@@ -111,11 +112,15 @@ Total Detections: {count}
 {notes}
             """.strip()
 
+            # Create a single alert
             cursor.execute("""
-                INSERT INTO alerts (device_id, detected_at, alert_type, message)
-                VALUES (%s, %s, 'unknown_device', %s)
-                ON CONFLICT DO NOTHING
-            """, (mac, timestamp, alert_message))
+                INSERT INTO alerts (device_id, detected_at, alert_type, details, severity)
+                VALUES (%s, %s, 'unknown_device', %s, %s)
+                ON CONFLICT (device_id, alert_type) WHERE NOT is_resolved
+                DO UPDATE SET detected_at = EXCLUDED.detected_at, 
+                            details = EXCLUDED.details,
+                            severity = EXCLUDED.severity
+            """, (mac, timestamp, alert_details, threat_level))
 
         conn.commit()
         cursor.close()
@@ -127,21 +132,26 @@ def check_alerts():
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
-        cursor.execute("SELECT id, device_id, detected_at, alert_type, message FROM alerts")
+        cursor.execute("""
+            SELECT id, device_id, detected_at, alert_type, details, severity 
+            FROM alerts 
+            WHERE NOT is_resolved 
+            ORDER BY severity DESC, detected_at ASC
+        """)
         rows = cursor.fetchall()
 
-        for alert_id, device_id, timestamp, alert_type, message in rows:
+        for alert_id, device_id, timestamp, alert_type, details, severity in rows:
             # Format message based on alert type
             if alert_type == 'new_device':
-                body = f"🆕 New Device Detected\nMAC: {device_id}\nTime: {timestamp}"
+                body = f"🆕 New Device Detected\nMAC: {device_id}\nTime: {timestamp}\nDetails: {details}"
             elif alert_type == 'unknown_device':
-                body = f"⚠️ ALERT: Known Threat Device Connected\n{message}\nDetected at: {timestamp}"
+                body = f"⚠️ ALERT: {severity.upper()} Risk Threat Device Connected\n{details}\nDetected at: {timestamp}"
             else:
-                body = f"Alert: {message}\nDevice: {device_id}\nTime: {timestamp}"
+                body = f"Alert ({severity}): {details}\nDevice: {device_id}\nTime: {timestamp}"
 
             send_email(body)
             # send_telegram(body)
-            cursor.execute("DELETE FROM alerts WHERE id = %s", (alert_id,))
+            cursor.execute("UPDATE alerts SET is_resolved = TRUE WHERE id = %s", (alert_id,))
 
         conn.commit()
         cursor.close()
