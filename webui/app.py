@@ -279,16 +279,23 @@ def unknown_devices():
         
         # Get unknown devices with their detection count and fix any invalid MAC addresses
         cur.execute("""
-            WITH bad_macs AS (
-                -- Find and fix any rows with invalid MAC addresses
-                UPDATE unknown_devices 
-                SET mac_address = mac_address::macaddr::macaddr  -- This will standardize MAC format
-                WHERE mac_address IS NOT NULL 
-                    AND mac_address::text !~ '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$'
-                RETURNING mac_address
+            WITH unknown_devices_formatted AS (
+                -- First format all MAC addresses consistently
+                SELECT 
+                    id,
+                    CASE 
+                        WHEN mac_address IS NULL THEN NULL
+                        ELSE LOWER(REPLACE(mac_address::macaddr::text, '-', ':'))
+                    END as mac_address,
+                    last_ip,
+                    first_seen,
+                    last_seen,
+                    threat_level,
+                    notes
+                FROM unknown_devices
             )
             SELECT 
-                COALESCE(ud.mac_address::text, '') as mac,
+                COALESCE(ud.mac_address, '') as mac,
                 COALESCE(ud.last_ip::text, 'Unknown') as last_ip,
                 COALESCE(TO_CHAR(ud.first_seen, 'YYYY-MM-DD HH24:MI:SS'), 'Never') as first_seen,
                 COALESCE(TO_CHAR(ud.last_seen, 'YYYY-MM-DD HH24:MI:SS'), 'Never') as last_seen,
@@ -300,7 +307,7 @@ def unknown_devices():
                     WHERE dl.mac_address::macaddr = ud.mac_address::macaddr
                 ) as detection_count,
                 'Unknown' as hostname
-            FROM unknown_devices ud
+            FROM unknown_devices_formatted ud
             WHERE ud.mac_address IS NOT NULL  -- Skip any null MAC addresses
             ORDER BY 
                 CASE ud.threat_level
@@ -313,9 +320,19 @@ def unknown_devices():
         """)
         unknown_devices = cur.fetchall()
         
-        devices = [
-            {
-                'mac': dev[0],
+        # Debug: Print raw data from database
+        print("Raw data from database:")
+        for dev in unknown_devices:
+            print(f"MAC: '{dev[0]}', IP: '{dev[1]}', First: '{dev[2]}', Last: '{dev[3]}', Threat: '{dev[4]}', Notes: '{dev[5]}'")
+        
+        devices = []
+        for dev in unknown_devices:
+            mac = dev[0].strip() if dev[0] else ''  # Remove any whitespace
+            if not mac:  # Skip entries with empty MACs
+                continue
+                
+            device = {
+                'mac': mac,
                 'last_ip': dev[1],
                 'first_seen': dev[2],
                 'last_seen': dev[3],
@@ -324,9 +341,7 @@ def unknown_devices():
                 'detection_count': dev[6],
                 'hostname': dev[7]
             }
-            for dev in unknown_devices
-            if dev[0]  # Only include devices with non-empty MAC addresses
-        ]
+            devices.append(device)
         
     except psycopg2.Error as e:
         flash(f'Database error: {str(e)}', 'error')
@@ -335,6 +350,11 @@ def unknown_devices():
     finally:
         cur.close()
         conn.close()
+    
+    # Debug: Print what we're sending to the template
+    print("\nDevices being sent to template:")
+    for device in devices:
+        print(f"Device: {device}")
     
     return render_template('unknown.html', devices=devices)
 
