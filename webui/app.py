@@ -31,9 +31,6 @@ def main_page():
 
     return render_template('main.html', hosts=known_hosts)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
-
 
 
 @app.route('/review')
@@ -78,3 +75,6 @@ def add_to_known():
     conn.close()
 
     return redirect(url_for('main_page'))
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
