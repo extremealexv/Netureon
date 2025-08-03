@@ -187,17 +187,17 @@
             <div class="device-grid">
                 {% for device in devices %}
                 <div class="device-card">
-                    <input type="checkbox" name="selected_devices" value="{{ device[0] }}">
+                    <input type="checkbox" name="selected_devices" value="{{ device[1] }}">
                     <div class="device-info">
-                        <h3>{{ device[1] or 'Unnamed Device' }}</h3>
-                        <div class="status-badge {% if device[4] %}status-active{% else %}status-inactive{% endif %}">
-                            {% if device[4] %}
+                        <h3>{{ device[0] or 'Unnamed Device' }}</h3>
+                        <div class="status-badge {% if device[6] %}status-active{% else %}status-inactive{% endif %}">
+                            {% if device[6] %}
                                 🟢 Active
                             {% else %}
                                 ⚫ Inactive
                             {% endif %}
                         </div>
-                        <p><strong>MAC:</strong> {{ device[0] }}</p>
+                        <p><strong>MAC:</strong> {{ device[1] }}</p>
                         <p><strong>Last Seen:</strong> {{ device[2]|default('Never', true) }}</p>
                         <p><strong>Notes:</strong> {{ device[3]|default('No notes', true) }}</p>
                     </div>

@@ -149,9 +149,8 @@ def review_page():
 
     # Get new devices
     cur.execute("""
-        SELECT device_name, mac_address, device_type, last_seen, last_ip, notes
+        SELECT device_name, mac_address, device_type, last_seen, last_ip, notes, reviewed
         FROM new_devices
-        WHERE reviewed = FALSE
         ORDER BY last_seen DESC
     """)
     new_devices = cur.fetchall()
@@ -241,9 +240,8 @@ def unknown_devices():
                 FROM discovery_log 
                 WHERE mac_address = ud.mac_address
             ) as detection_count,
-            COALESCE(dp.hostname, 'Unknown') as hostname
+            'Unknown' as hostname
         FROM unknown_devices ud
-        LEFT JOIN device_profiles dp ON ud.mac_address = dp.mac_address
         ORDER BY 
             CASE ud.threat_level
                 WHEN 'high' THEN 1
