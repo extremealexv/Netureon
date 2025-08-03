@@ -183,6 +183,7 @@
             {% endif %}
         {% endwith %}
 
+        {% block content %}
         <form method="post" action="{{ url_for('main_page') }}">
             <div class="device-grid">
                 {% for device in devices %}
@@ -220,6 +221,7 @@
                 <input type="text" name="notes" placeholder="Add notes" class="form-control">
             </div>
         </form>
+        {% endblock %}
     </div>
 </body>
 </html>
