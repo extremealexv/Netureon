@@ -1,14 +1,4 @@
--- Safely migrate the alerts tab        -- Migrate data from backup if it exists and has required columns
-DO $$ 
-BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alerts_backup') 
-       AND EXISTS (
-           SELECT 1 
-           FROM information_schema.columns 
-           WHERE table_name = 'alerts_backup' 
-           AND column_name IN ('device_id', 'detected_at', 'alert_type')
-       ) 
-    THENBEGIN;
+-- Safely migrate the alerts table
 
 -- Backup existing alerts if table exists
 DO $$ 

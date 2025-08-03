@@ -53,23 +53,39 @@ def apply_migration():
         
     except psycopg2.Error as e:
         print(f"\n❌ Database error during migration:")
-        print(f"Error: {e.diag.message_primary if hasattr(e, 'diag') else str(e)}")
+        print(f"Error: {str(e)}")
+        
+        # Safe attribute access for diagnostic info
         if hasattr(e, 'diag'):
-            if e.diag.context:
-                print(f"Context: {e.diag.context}")
-            if e.diag.statement:
-                print(f"Statement: {e.diag.statement}")
-        conn.rollback()
+            diag = e.diag
+            if hasattr(diag, 'message_primary'):
+                print(f"Details: {diag.message_primary}")
+            if hasattr(diag, 'message_detail'):
+                print(f"Additional Info: {diag.message_detail}")
+            if hasattr(diag, 'message_hint'):
+                print(f"Hint: {diag.message_hint}")
+            if hasattr(diag, 'context'):
+                print(f"Context: {diag.context}")
+        
+        if 'conn' in locals() and conn:
+            conn.rollback()
         raise
     except Exception as e:
         print(f"\n❌ Error during migration: {str(e)}")
-        conn.rollback()
+        if 'conn' in locals() and conn:
+            conn.rollback()
         raise
     finally:
         if 'cur' in locals() and cur:
-            cur.close()
+            try:
+                cur.close()
+            except:
+                pass
         if 'conn' in locals() and conn:
-            conn.close()
+            try:
+                conn.close()
+            except:
+                pass
 
 if __name__ == "__main__":
     apply_migration()
