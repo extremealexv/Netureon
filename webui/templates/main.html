@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NetGuard - Known Devices</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>🔐 Known Devices on Network</h1>
+    <table>
+        <tr>
+            <th>Device Name</th>
+            <th>MAC Address</th>
+            <th>Type</th>
+            <th>Last Seen</th>
+            <th>IP</th>
+            <th>Notes</th>
+        </tr>
+        {% for host in hosts %}
+        <tr>
+            <td>{{ host[0] }}</td>
+            <td>{{ host[1] }}</td>
+            <td>{{ host[2] }}</td>
+            <td>{{ host[4] }}</td>
+            <td>{{ host[5] }}</td>
+            <td>{{ host[3] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
