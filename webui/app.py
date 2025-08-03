@@ -36,6 +36,9 @@ def main_page():
             
             for mac in selected_devices:
                 # Get device info before deleting
+                # Print debug info
+                print(f"Moving device to unknown: {mac}")
+                
                 cur.execute("""
                     SELECT last_ip, device_name, last_seen, first_seen 
                     FROM known_devices 
@@ -44,26 +47,36 @@ def main_page():
                 device = cur.fetchone()
                 
                 if device:
+                    print(f"Found device info: {device}")
                     # Insert into unknown_devices
                     cur.execute("""
                         INSERT INTO unknown_devices 
                         (mac_address, last_ip, first_seen, last_seen, threat_level, notes)
                         VALUES (%s::macaddr, %s, %s, %s, %s, %s)
+                        RETURNING mac_address::text
                     """, (
                         mac, device[0], device[3] or datetime.now(),
                         device[2] or datetime.now(), threat_level,
                         f"Moved from known devices. {notes if notes else ''}"
                     ))
+                    inserted_mac = cur.fetchone()[0]
+                    print(f"Inserted into unknown_devices: {inserted_mac}")
                     
                     # Delete from known_devices
-                    cur.execute("DELETE FROM known_devices WHERE mac_address = %s::macaddr", (mac,))
+                    cur.execute("""
+                        DELETE FROM known_devices 
+                        WHERE mac_address = %s::macaddr
+                        RETURNING mac_address::text
+                    """, (mac,))
+                    deleted_mac = cur.fetchone()[0]
+                    print(f"Deleted from known_devices: {deleted_mac}")
             
             flash(f'{len(selected_devices)} devices marked as unknown', 'warning')
             
         elif action == 'delete':
             # Remove devices
             for mac in selected_devices:
-                cur.execute("DELETE FROM known_devices WHERE mac_address = %s", (mac,))
+                cur.execute("DELETE FROM known_devices WHERE mac_address = %s::macaddr", (mac,))
             
             flash(f'Removed {len(selected_devices)} devices', 'danger')
         
@@ -71,10 +84,10 @@ def main_page():
     
     # Get known devices with active status
     cur.execute("""
-        SELECT k.device_name, k.mac_address, k.device_type, k.notes, k.last_seen, k.last_ip,
+        SELECT k.device_name, k.mac_address::text, k.device_type, k.notes, k.last_seen, k.last_ip,
                EXISTS(
                    SELECT 1 FROM discovery_log d 
-                   WHERE d.mac_address = k.mac_address 
+                   WHERE d.mac_address::macaddr = k.mac_address 
                    AND d.timestamp > NOW() - INTERVAL '1 hour'
                ) as is_active
         FROM known_devices k

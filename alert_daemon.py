@@ -3,7 +3,34 @@ import smtplib
 import requests
 import time
 import os
-from dotenv import load_dotenv
+        cur.execute("""
+            WITH formatted_macs AS (
+                SELECT 
+                    dl.mac_address,
+                    dl.ip_address,
+                    dl.timestamp,
+                    dl.mac_address::macaddr as formatted_mac
+                FROM discovery_log dl
+                WHERE dl.timestamp > NOW() - INTERVAL '5 minutes'
+            )
+            SELECT 
+                fm.mac_address, 
+                fm.ip_address, 
+                fm.timestamp, 
+                ud.threat_level, 
+                ud.notes,
+                ud.first_seen,
+                (
+                    SELECT COUNT(*) 
+                    FROM discovery_log 
+                    WHERE mac_address::macaddr = fm.formatted_mac
+                ) as detection_count,
+                dp.hostname,
+                dp.vendor,
+                dp.open_ports
+            FROM formatted_macs fm
+            JOIN unknown_devices ud ON fm.formatted_mac = ud.mac_address
+            LEFT JOIN device_profiles dp ON fm.formatted_mac = dp.mac_address::macaddroad_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -31,12 +58,18 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 def send_email(body):
+    if not all([SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM, EMAIL_TO]):
+        print("Email configuration incomplete. Skipping email notification.")
+        return
+        
     try:
+        print(f"Sending email notification to {EMAIL_TO}")
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(SMTP_USER, SMTP_PASSWORD)
             message = f"Subject:{EMAIL_SUBJECT}\n\n{body}"
             server.sendmail(EMAIL_FROM, EMAIL_TO, message)
+            print("Email sent successfully")
     except Exception as e:
         print(f"Email error: {e}")
 
@@ -112,15 +145,21 @@ Total Detections: {count}
 {notes}
             """.strip()
 
-            # Create a single alert
-            cursor.execute("""
-                INSERT INTO alerts (device_id, detected_at, alert_type, details, severity)
-                VALUES (%s, %s, 'unknown_device', %s, %s)
-                ON CONFLICT (device_id, alert_type) WHERE NOT is_resolved
-                DO UPDATE SET detected_at = EXCLUDED.detected_at, 
-                            details = EXCLUDED.details,
-                            severity = EXCLUDED.severity
-            """, (mac, timestamp, alert_details, threat_level))
+            # Create a single alert with proper MAC address handling
+            try:
+                cursor.execute("""
+                    INSERT INTO alerts (device_id, detected_at, alert_type, details, severity)
+                    VALUES (%s::macaddr, %s, 'unknown_device', %s, %s)
+                    ON CONFLICT (device_id, alert_type) WHERE NOT is_resolved
+                    DO UPDATE SET detected_at = EXCLUDED.detected_at, 
+                                details = EXCLUDED.details,
+                                severity = EXCLUDED.severity
+                    RETURNING device_id::text
+                """, (mac, timestamp, alert_details, threat_level))
+                alert_mac = cursor.fetchone()[0]
+                print(f"Alert created/updated for device: {alert_mac}")
+            except psycopg2.Error as e:
+                print(f"Error creating alert for {mac}: {e}")
 
         conn.commit()
         cursor.close()
