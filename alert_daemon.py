@@ -145,36 +145,81 @@ Open Ports: {', '.join(map(str, ports)) if ports else 'None detected'}
     """.strip()
 
 def check_for_unknown_devices():
-    """Check discovery_log for any connections from unknown devices."""
+    """Check for new devices and active unknown devices that need alerts."""
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         
-        # Get recent connections that match unknown devices with detailed info
+        # Check for new devices that haven't been alerted on
         cursor.execute("""
+            INSERT INTO alerts (device_id, alert_type, detected_at, details, severity)
             SELECT 
-                dl.mac_address, 
-                dl.ip_address, 
-                dl.timestamp, 
-                ud.threat_level, 
-                ud.notes,
-                ud.first_seen,
-                (
-                    SELECT COUNT(*) 
-                    FROM discovery_log 
-                    WHERE mac_address::macaddr = dl.mac_address::macaddr
-                ) as detection_count,
-                NULL as hostname,
-                NULL as vendor,
-                NULL as open_ports
-            FROM discovery_log dl
-            JOIN unknown_devices ud ON dl.mac_address::macaddr = ud.mac_address
-            WHERE dl.timestamp > NOW() - INTERVAL '5 minutes'
+                nd.mac_address,
+                'new_device',
+                nd.last_seen,
+                CONCAT(
+                    'New device detected:\n',
+                    'MAC: ', nd.mac_address, '\n',
+                    'IP: ', COALESCE(nd.last_ip::text, 'Unknown'), '\n',
+                    'First Seen: ', nd.first_seen, '\n',
+                    CASE 
+                        WHEN nd.device_name IS NOT NULL THEN CONCAT('Name: ', nd.device_name, '\n')
+                        ELSE ''
+                    END
+                ),
+                'medium'
+            FROM new_devices nd
+            LEFT JOIN alerts a ON 
+                a.device_id::macaddr = nd.mac_address::macaddr AND 
+                a.alert_type = 'new_device' AND 
+                NOT a.is_resolved
+            WHERE a.id IS NULL
+            RETURNING device_id::text;
+        """)
+        new_device_alerts = cursor.fetchall()
+        for alert in new_device_alerts:
+            print(f"Created alert for new device: {alert[0]}")
+            
+        # Check for unknown devices that have been recently active
+        cursor.execute("""
+            WITH recent_activity AS (
+                SELECT DISTINCT ON (ud.mac_address)
+                    ud.mac_address,
+                    dl.ip_address,
+                    dl.timestamp,
+                    ud.threat_level,
+                    ud.notes,
+                    ud.first_seen,
+                    (
+                        SELECT COUNT(*) 
+                        FROM discovery_log 
+                        WHERE mac_address::macaddr = ud.mac_address::macaddr
+                    ) as detection_count
+                FROM unknown_devices ud
+                JOIN discovery_log dl ON dl.mac_address::macaddr = ud.mac_address::macaddr
+                WHERE dl.timestamp > NOW() - INTERVAL '5 minutes'
+                ORDER BY ud.mac_address, dl.timestamp DESC
+            )
+            SELECT 
+                ra.mac_address,
+                ra.ip_address,
+                ra.timestamp,
+                ra.threat_level,
+                ra.notes,
+                ra.first_seen,
+                ra.detection_count
+            FROM recent_activity ra
+            LEFT JOIN alerts a ON 
+                a.device_id::macaddr = ra.mac_address::macaddr AND 
+                a.alert_type = 'unknown_device' AND 
+                NOT a.is_resolved AND
+                a.detected_at > NOW() - INTERVAL '1 hour'
+            WHERE a.id IS NULL
         """)
         unknown_connections = cursor.fetchall()
 
         # Create alerts for unknown device connections
-        for mac, ip, timestamp, threat_level, notes, first_seen, count, hostname, vendor, ports in unknown_connections:
+        for mac, ip, timestamp, threat_level, notes, first_seen, count in unknown_connections:
             # Update last_seen in unknown_devices
             cursor.execute("""
                 UPDATE unknown_devices 
@@ -182,8 +227,8 @@ def check_for_unknown_devices():
                 WHERE mac_address = %s::macaddr
             """, (timestamp, ip, mac))
 
-            # Format complete alert details
-            device_info = format_device_info(mac, ip, hostname, vendor, ports or [])
+            # Format basic alert details without hostname/vendor info
+            device_info = format_device_info(mac, ip, None, None, [])
             alert_details = f"""
 THREAT DETECTED: {threat_level.upper()} Risk Device
 {device_info}
