@@ -299,16 +299,7 @@ def unknown_devices():
                     FROM discovery_log dl
                     WHERE dl.mac_address::macaddr = ud.mac_address::macaddr
                 ) as detection_count,
-                COALESCE(
-                    (
-                        SELECT dp.hostname 
-                        FROM device_profiles dp 
-                        WHERE dp.mac_address::macaddr = ud.mac_address::macaddr
-                        ORDER BY dp.last_updated DESC 
-                        LIMIT 1
-                    ),
-                    'Unknown'
-                ) as hostname
+                'Unknown' as hostname
             FROM unknown_devices ud
             WHERE ud.mac_address IS NOT NULL  -- Skip any null MAC addresses
             ORDER BY 
@@ -344,8 +335,6 @@ def unknown_devices():
     finally:
         cur.close()
         conn.close()
-    
-    return render_template('unknown.html', devices=devices)
     
     return render_template('unknown.html', devices=devices)
 
