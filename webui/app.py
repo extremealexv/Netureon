@@ -118,13 +118,16 @@ def review_page():
                 for mac in selected_devices:
                     # Move to known devices
                     cur.execute("""
+                        WITH device AS (
+                            SELECT device_name, mac_address::macaddr, device_type, last_seen, last_ip, notes
+                            FROM new_devices
+                            WHERE mac_address = %s
+                        )
                         INSERT INTO known_devices 
                         (device_name, mac_address, device_type, last_seen, last_ip, notes)
-                        SELECT device_name, mac_address::macaddr, device_type, last_seen, last_ip, notes
-                        FROM new_devices
-                        WHERE mac_address = %s::macaddr
+                        SELECT * FROM device
                     """, (mac,))
-                    cur.execute("DELETE FROM new_devices WHERE mac_address = %s::macaddr", (mac,))
+                    cur.execute("DELETE FROM new_devices WHERE mac_address = %s", (mac,))
                 flash(f'Added {len(selected_devices)} devices to known devices', 'success')
             
             elif action == 'block':
@@ -134,13 +137,17 @@ def review_page():
                 for mac in selected_devices:
                     # Move to unknown devices
                     cur.execute("""
+                        WITH device AS (
+                            SELECT mac_address::macaddr, last_ip, first_seen, last_seen
+                            FROM new_devices
+                            WHERE mac_address = %s
+                        )
                         INSERT INTO unknown_devices 
                         (mac_address, last_ip, first_seen, last_seen, threat_level, notes)
-                        SELECT mac_address::macaddr, last_ip, first_seen, last_seen, %s, %s
-                        FROM new_devices
-                        WHERE mac_address = %s::macaddr
-                    """, (threat_level, notes, mac))
-                    cur.execute("DELETE FROM new_devices WHERE mac_address = %s::macaddr", (mac,))
+                        SELECT mac_address, last_ip, first_seen, last_seen, %s, %s
+                        FROM device
+                    """, (mac, threat_level, notes))
+                    cur.execute("DELETE FROM new_devices WHERE mac_address = %s", (mac,))
                 flash(f'Marked {len(selected_devices)} devices as threats', 'warning')
             
             conn.commit()
