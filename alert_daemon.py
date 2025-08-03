@@ -77,14 +77,14 @@ def check_for_unknown_devices():
                 (
                     SELECT COUNT(*) 
                     FROM discovery_log 
-                    WHERE mac_address = dl.mac_address
+                    WHERE mac_address::macaddr = dl.mac_address::macaddr
                 ) as detection_count,
                 dp.hostname,
                 dp.vendor,
                 dp.open_ports
             FROM discovery_log dl
-            JOIN unknown_devices ud ON dl.mac_address = ud.mac_address
-            LEFT JOIN device_profiles dp ON dl.mac_address = dp.mac_address
+            JOIN unknown_devices ud ON dl.mac_address::macaddr = ud.mac_address
+            LEFT JOIN device_profiles dp ON dl.mac_address::macaddr = dp.mac_address
             WHERE dl.timestamp > NOW() - INTERVAL '5 minutes'
         """)
         unknown_connections = cursor.fetchall()
@@ -95,7 +95,7 @@ def check_for_unknown_devices():
             cursor.execute("""
                 UPDATE unknown_devices 
                 SET last_seen = %s, last_ip = %s 
-                WHERE mac_address = %s
+                WHERE mac_address = %s::macaddr
             """, (timestamp, ip, mac))
 
             # Format complete alert details
