@@ -102,16 +102,32 @@ def handle_delete_action(selected_devices):
     for mac in selected_devices:
         try:
             mac_clean = mac.strip().lower()
-            deleted += Database.execute_query("""
-                DELETE FROM unknown_devices 
-                WHERE mac_address = %s::macaddr
-                RETURNING 1
-            """, (mac_clean,))[0][0]
+            queries = [
+                # Remove from discovery_log (optional, helps prevent instant re-detection)
+                ("""
+                    DELETE FROM discovery_log 
+                    WHERE mac_address::macaddr = %s::macaddr
+                """, (mac_clean,)),
+                # Remove any existing alerts
+                ("""
+                    DELETE FROM alerts 
+                    WHERE device_id::macaddr = %s::macaddr
+                """, (mac_clean,)),
+                # Finally remove from unknown_devices
+                ("""
+                    DELETE FROM unknown_devices 
+                    WHERE mac_address = %s::macaddr
+                    RETURNING 1
+                """, (mac_clean,))
+            ]
+            Database.execute_transaction(queries)
+            deleted += 1
         except Exception as e:
             flash(f'Error deleting device {mac}: {str(e)}', 'error')
+            continue
     
     if deleted > 0:
-        flash(f'Successfully removed {deleted} devices', 'success')
+        flash(f'Successfully removed {deleted} devices and cleaned up related data', 'success')
     else:
         flash('No devices were removed. Please check the MAC addresses.', 'warning')
 
