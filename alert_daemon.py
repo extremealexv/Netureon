@@ -20,7 +20,7 @@ DB_CONFIG = {
 # Email config
 EMAIL_FROM = "alexander.vasilyev83@gmail.com"
 EMAIL_TO = "aleksandr@vasilyev.tech"
-EMAIL_SUBJECT = "Intrision Alert"
+EMAIL_SUBJECT = "Intrusion Alert"
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 SMTP_USER = "alexander.vasilyev83@gmail.com"
