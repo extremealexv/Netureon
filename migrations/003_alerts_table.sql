@@ -1,5 +1,14 @@
--- Safely migrate the alerts table
-BEGIN;
+-- Safely migrate the alerts tab        -- Migrate data from backup if it exists and has required columns
+DO $$ 
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alerts_backup') 
+       AND EXISTS (
+           SELECT 1 
+           FROM information_schema.columns 
+           WHERE table_name = 'alerts_backup' 
+           AND column_name IN ('device_id', 'detected_at', 'alert_type')
+       ) 
+    THENBEGIN;
 
 -- Backup existing alerts if table exists
 DO $$ 
@@ -34,16 +43,52 @@ CREATE INDEX idx_alerts_severity ON alerts(severity);
 DO $$ 
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alerts_backup') THEN
-        -- Insert old data with best-effort mapping
-        INSERT INTO alerts (device_id, detected_at, alert_type, details, severity, is_resolved)
-        SELECT 
-            device_id,
-            detected_at,
-            alert_type,
-            COALESCE(message, 'No details available') as details,
-            'medium' as severity, -- Default all old alerts to medium severity
-            TRUE as is_resolved  -- Mark old alerts as resolved
-        FROM alerts_backup;
+        -- Check what columns exist in the backup
+        CREATE TEMP TABLE column_check AS
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'alerts_backup';
+        
+        -- Insert old data with dynamic column mapping
+        DO $inner$ 
+        BEGIN
+            -- Check if message column exists
+            IF EXISTS (SELECT 1 FROM column_check WHERE column_name = 'message') THEN
+                INSERT INTO alerts (device_id, detected_at, alert_type, details, severity, is_resolved)
+                SELECT 
+                    device_id,
+                    detected_at,
+                    alert_type,
+                    message as details,
+                    'medium' as severity,
+                    TRUE as is_resolved
+                FROM alerts_backup;
+            -- If no message column but has details column    
+            ELSIF EXISTS (SELECT 1 FROM column_check WHERE column_name = 'details') THEN
+                INSERT INTO alerts (device_id, detected_at, alert_type, details, severity, is_resolved)
+                SELECT 
+                    device_id,
+                    detected_at,
+                    alert_type,
+                    details,
+                    'medium' as severity,
+                    TRUE as is_resolved
+                FROM alerts_backup;
+            -- Otherwise just use a placeholder for details
+            ELSE
+                INSERT INTO alerts (device_id, detected_at, alert_type, details, severity, is_resolved)
+                SELECT 
+                    device_id,
+                    detected_at,
+                    alert_type,
+                    'Migrated alert - no details available' as details,
+                    'medium' as severity,
+                    TRUE as is_resolved
+                FROM alerts_backup;
+            END IF;
+        END $inner$;
+        
+        DROP TABLE column_check;
 
         -- Drop the backup table
         DROP TABLE alerts_backup;

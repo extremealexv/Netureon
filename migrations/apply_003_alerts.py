@@ -51,14 +51,24 @@ def apply_migration():
         conn.commit()
         print("\n✅ Migration completed successfully!")
         
+    except psycopg2.Error as e:
+        print(f"\n❌ Database error during migration:")
+        print(f"Error: {e.diag.message_primary if hasattr(e, 'diag') else str(e)}")
+        if hasattr(e, 'diag'):
+            if e.diag.context:
+                print(f"Context: {e.diag.context}")
+            if e.diag.statement:
+                print(f"Statement: {e.diag.statement}")
+        conn.rollback()
+        raise
     except Exception as e:
         print(f"\n❌ Error during migration: {str(e)}")
         conn.rollback()
         raise
     finally:
-        if cur:
+        if 'cur' in locals() and cur:
             cur.close()
-        if conn:
+        if 'conn' in locals() and conn:
             conn.close()
 
 if __name__ == "__main__":
