@@ -182,7 +182,7 @@ def unknown_devices():
                 flash('Please select at least one device', 'warning')
                 return redirect(url_for('unknown_devices'))
             
-            if action == 'update_threat':
+            if action == 'update':
                 threat_level = request.form.get('threat_level', 'medium')
                 notes = request.form.get('notes', '')
                 
@@ -216,10 +216,10 @@ def unknown_devices():
                         # Print debug information
                         print(f"Attempting to delete MAC: {mac_clean}")
                         
-                        # Simplified delete query using macaddr type casting
+                        # Cast the input to macaddr for comparison
                         cur.execute("""
                             DELETE FROM unknown_devices 
-                            WHERE mac_address::text = %s::macaddr::text
+                            WHERE mac_address = %s::macaddr
                         """, (mac_clean,))
                         
                         deleted += cur.rowcount
@@ -242,11 +242,11 @@ def unknown_devices():
                 
                 for mac in selected_devices:
                     try:
-                        # Get device info
+                        # Get device info with proper type casting
                         cur.execute("""
                             SELECT last_ip, first_seen, last_seen
                             FROM unknown_devices 
-                            WHERE mac_address::text = %s
+                            WHERE mac_address = %s::macaddr
                         """, (mac,))
                         device = cur.fetchone()
                         
@@ -262,7 +262,7 @@ def unknown_devices():
                             ))
                             
                             # Delete from unknown devices only if insert was successful
-                            cur.execute("DELETE FROM unknown_devices WHERE mac_address::text = %s", (mac,))
+                            cur.execute("DELETE FROM unknown_devices WHERE mac_address = %s::macaddr", (mac,))
                             moved += 1
                     except psycopg2.Error as e:
                         flash(f'Error moving device {mac}: {str(e)}', 'error')
