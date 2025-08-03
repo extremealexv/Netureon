@@ -193,14 +193,14 @@ def unknown_devices():
                             WHEN notes IS NULL OR notes = '' THEN %s
                             ELSE notes || '. ' || %s
                         END
-                    WHERE mac_address = %s
+                    WHERE mac_address = %s::macaddr
                 """, (threat_level, notes, notes, mac))
             
             flash(f'Updated threat level for {len(selected_devices)} devices', 'info')
             
         elif action == 'delete':
             for mac in selected_devices:
-                cur.execute("DELETE FROM unknown_devices WHERE mac_address = %s", (mac,))
+                cur.execute("DELETE FROM unknown_devices WHERE mac_address = %s::macaddr", (mac,))
             flash(f'Removed {len(selected_devices)} devices', 'success')
             
         elif action == 'approve':
@@ -245,7 +245,7 @@ def unknown_devices():
             (
                 SELECT COUNT(*) 
                 FROM discovery_log 
-                WHERE mac_address = ud.mac_address
+                WHERE mac_address::macaddr = ud.mac_address::macaddr
             ) as detection_count,
             'Unknown' as hostname
         FROM unknown_devices ud
