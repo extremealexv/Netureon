@@ -96,17 +96,12 @@ def handle_delete_action(selected_devices):
         try:
             # Delete from known_devices and cleanup related data
             queries = [
-                # Remove from device_profiles
-                ("""
-                    DELETE FROM device_profiles 
-                    WHERE mac_address::macaddr = %s::macaddr
-                """, (mac,)),
                 # Remove any existing alerts
                 ("""
                     DELETE FROM alerts 
                     WHERE device_id::macaddr = %s::macaddr
                 """, (mac,)),
-                # Remove from discovery_log (optional, but helps prevent instant re-detection)
+                # Remove from discovery_log
                 ("""
                     DELETE FROM discovery_log 
                     WHERE mac_address::macaddr = %s::macaddr

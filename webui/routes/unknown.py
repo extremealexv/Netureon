@@ -103,7 +103,7 @@ def handle_delete_action(selected_devices):
         try:
             mac_clean = mac.strip().lower()
             queries = [
-                # Remove from discovery_log (optional, helps prevent instant re-detection)
+                # Remove from discovery_log
                 ("""
                     DELETE FROM discovery_log 
                     WHERE mac_address::macaddr = %s::macaddr

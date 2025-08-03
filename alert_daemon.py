@@ -154,12 +154,12 @@ def check_for_unknown_devices():
         cursor.execute("""
             INSERT INTO alerts (device_id, alert_type, detected_at, details, severity)
             SELECT 
-                nd.mac_address,
+                nd.mac_address::macaddr,
                 'new_device',
                 nd.last_seen,
                 CONCAT(
                     'New device detected:\n',
-                    'MAC: ', nd.mac_address, '\n',
+                    'MAC: ', nd.mac_address::macaddr::text, '\n',
                     'IP: ', COALESCE(nd.last_ip::text, 'Unknown'), '\n',
                     'First Seen: ', nd.first_seen, '\n',
                     CASE 
@@ -171,7 +171,7 @@ def check_for_unknown_devices():
             FROM new_devices nd
             LEFT JOIN known_devices kd ON kd.mac_address::macaddr = nd.mac_address::macaddr
             LEFT JOIN alerts a ON 
-                a.device_id::macaddr = nd.mac_address::macaddr AND 
+                a.device_id = nd.mac_address::macaddr AND 
                 a.alert_type = 'new_device'
             WHERE kd.mac_address IS NULL  -- Ensure device is not in known_devices
             AND a.id IS NULL             -- Ensure we haven't alerted on this device before
@@ -248,7 +248,7 @@ Threat Notes:
                     WITH latest_alert AS (
                         SELECT detected_at
                         FROM alerts
-                        WHERE device_id = %s::macaddr
+                        WHERE device_id::macaddr = %s::macaddr
                         AND alert_type = 'unknown_device'
                         AND NOT is_resolved
                         ORDER BY detected_at DESC

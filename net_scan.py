@@ -71,9 +71,9 @@ def update_database(devices):
         cur.execute("""
             SELECT 
                 CASE 
-                    WHEN EXISTS (SELECT 1 FROM known_devices WHERE mac_address::text = %s) THEN 'known'
-                    WHEN EXISTS (SELECT 1 FROM unknown_devices WHERE mac_address::text = %s) THEN 'threat'
-                    WHEN EXISTS (SELECT 1 FROM new_devices WHERE mac_address::text = %s) THEN 'new'
+                    WHEN EXISTS (SELECT 1 FROM known_devices WHERE mac_address = %s::macaddr) THEN 'known'
+                    WHEN EXISTS (SELECT 1 FROM unknown_devices WHERE mac_address = %s::macaddr) THEN 'threat'
+                    WHEN EXISTS (SELECT 1 FROM new_devices WHERE mac_address = %s::macaddr) THEN 'new'
                     ELSE 'unregistered'
                 END as device_status
         """, (mac, mac, mac))
@@ -82,7 +82,7 @@ def update_database(devices):
         # Log discovery
         cur.execute("""
             INSERT INTO discovery_log (mac_address, ip_address, timestamp, is_known)
-            VALUES (%s, %s, %s, %s)
+            VALUES (%s::macaddr, %s::inet, %s, %s)
         """, (mac, ip, timestamp, status == 'known'))
 
         # Handle device based on its status
@@ -90,8 +90,8 @@ def update_database(devices):
             # Update known device's last seen time
             cur.execute("""
                 UPDATE known_devices 
-                SET last_seen = %s, last_ip = %s 
-                WHERE mac_address::text = %s
+                SET last_seen = %s, last_ip = %s::inet 
+                WHERE mac_address = %s::macaddr
             """, (timestamp, ip, mac))
         elif status == 'threat':
             # Update threat device's last seen time
@@ -104,8 +104,8 @@ def update_database(devices):
             # Update new device's last seen time
             cur.execute("""
                 UPDATE new_devices 
-                SET last_seen = %s, last_ip = %s 
-                WHERE mac_address::text = %s
+                SET last_seen = %s, last_ip = %s::inet
+                WHERE mac_address = %s::macaddr
             """, (timestamp, ip, mac))
         else:  # unregistered
             # Profile device
@@ -125,7 +125,7 @@ def update_database(devices):
                 INSERT INTO new_devices (
                     mac_address, first_seen, last_seen, last_ip, 
                     reviewed, device_name, device_type, notes
-                ) VALUES (%s, %s, %s, %s, FALSE, %s, %s, %s)
+                ) VALUES (%s::macaddr, %s, %s, %s::inet, FALSE, %s, %s, %s)
             """, (mac, timestamp, timestamp, ip, hostname, vendor, notes))
 
     conn.commit()
