@@ -1,7 +1,20 @@
 # requirements.txt
-# Core dependencies
-psycopg2-binary==2.9.9  # PostgreSQL adapter
-netifaces==0.11.0       # Network interface information
-scapy==2.5.0           # Network packet manipulation
+# Network scanning and analysis
+scapy==2.5.0           # Network packet manipulation and ARP scanning
+netifaces==0.11.0      # Network interface information
+python-nmap==0.7.1     # Port scanning functionality
+
+# Database and environment
+psycopg2-binary==2.9.9 # PostgreSQL adapter
 python-dotenv==1.0.0   # Environment variable management
-requests==2.31.0       # HTTP requests
+
+# Device profiling and information gathering
+requests==2.31.0       # HTTP requests for vendor lookups
+dnspython==2.4.2       # DNS resolution for hostnames
+mac-vendor-lookup==0.1.12  # MAC address vendor lookup
+
+# Web Interface
+Flask==2.3.3          # Web framework
+Flask-SQLAlchemy==3.1.1 # SQL Alchemy integration for Flask
+Werkzeug==2.3.7       # WSGI web application library
+Jinja2==3.1.2         # Template engine for Flask
