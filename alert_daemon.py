@@ -196,21 +196,43 @@ Threat Notes:
 {notes}
             """.strip()
 
-            # Create a single alert with proper MAC address handling
+            # Check if we need to create a new alert
             try:
                 cursor.execute("""
-                    INSERT INTO alerts (device_id, detected_at, alert_type, details, severity)
-                    VALUES (%s::macaddr, %s, 'unknown_device', %s, %s)
-                    ON CONFLICT (device_id, alert_type) WHERE NOT is_resolved
-                    DO UPDATE SET detected_at = EXCLUDED.detected_at, 
-                                details = EXCLUDED.details,
-                                severity = EXCLUDED.severity
-                    RETURNING device_id::text
-                """, (mac, timestamp, alert_details, threat_level))
-                alert_mac = cursor.fetchone()[0]
-                print(f"Alert created/updated for device: {alert_mac}")
+                    WITH latest_alert AS (
+                        SELECT detected_at
+                        FROM alerts
+                        WHERE device_id = %s::macaddr
+                        AND alert_type = 'unknown_device'
+                        AND NOT is_resolved
+                        ORDER BY detected_at DESC
+                        LIMIT 1
+                    )
+                    SELECT 
+                        CASE 
+                            WHEN latest_alert.detected_at IS NULL THEN true
+                            WHEN latest_alert.detected_at < NOW() - INTERVAL '1 hour' THEN true
+                            ELSE false
+                        END as should_alert
+                    FROM (SELECT true) as t
+                    LEFT JOIN latest_alert ON true;
+                """, (mac,))
+                
+                should_alert = cursor.fetchone()[0]
+                
+                if should_alert:
+                    cursor.execute("""
+                        INSERT INTO alerts (device_id, detected_at, alert_type, details, severity)
+                        VALUES (%s::macaddr, %s, 'unknown_device', %s, %s)
+                        RETURNING device_id::text
+                    """, (mac, timestamp, alert_details, threat_level))
+                    alert_mac = cursor.fetchone()[0]
+                    print(f"New alert created for device: {alert_mac}")
+                else:
+                    print(f"Skipping alert creation for {mac} - recent alert exists")
+                    
             except psycopg2.Error as e:
-                print(f"Error creating alert for {mac}: {e}")
+                print(f"Error handling alert for {mac}: {e}")
 
         conn.commit()
         cursor.close()
@@ -218,15 +240,52 @@ Threat Notes:
     except Exception as e:
         print(f"Error checking unknown devices: {e}")
 
+last_email_time = None
+email_cooldown = 300  # 5 minutes between email attempts
+
 def check_alerts():
+    global last_email_time
+    
+    # Check if we're still in cooldown period
+    current_time = time.time()
+    if last_email_time and (current_time - last_email_time) < email_cooldown:
+        print(f"Email cooldown active. Waiting {email_cooldown - (current_time - last_email_time):.0f} seconds...")
+        return
+        
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
+        
+        # First, check if we have any unresolved alerts that need attention
         cursor.execute("""
-            SELECT id, device_id, detected_at, alert_type, details, severity 
+            SELECT COUNT(*) 
             FROM alerts 
             WHERE NOT is_resolved 
-            AND alert_type IN ('unknown_device', 'new_device')  -- Only alert for unknown and new devices
+            AND alert_type IN ('unknown_device', 'new_device')
+            AND detected_at > NOW() - INTERVAL '1 hour'
+        """)
+        alert_count = cursor.fetchone()[0]
+        
+        if alert_count == 0:
+            return
+            
+        # Get only the most recent alerts for each device
+        cursor.execute("""
+            WITH latest_alerts AS (
+                SELECT DISTINCT ON (device_id) 
+                    id,
+                    device_id,
+                    detected_at,
+                    alert_type,
+                    details,
+                    severity
+                FROM alerts 
+                WHERE NOT is_resolved 
+                AND alert_type IN ('unknown_device', 'new_device')
+                AND detected_at > NOW() - INTERVAL '1 hour'
+                ORDER BY device_id, detected_at DESC
+            )
+            SELECT * FROM latest_alerts
             ORDER BY 
                 severity DESC,
                 CASE alert_type 
@@ -234,7 +293,7 @@ def check_alerts():
                     WHEN 'new_device' THEN 2
                     ELSE 3
                 END,
-                detected_at ASC
+                detected_at DESC
         """)
         rows = cursor.fetchall()
         
