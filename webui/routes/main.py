@@ -91,10 +91,18 @@ def handle_block_action(selected_devices):
     flash(f'{len(selected_devices)} devices marked as unknown', 'warning')
 
 def handle_delete_action(selected_devices):
+    deleted = 0
     for mac in selected_devices:
-        Database.execute_query("""
-            DELETE FROM known_devices 
-            WHERE mac_address::macaddr = %s::macaddr
-        """, (mac,))
+        try:
+            deleted += Database.execute_query("""
+                DELETE FROM known_devices 
+                WHERE mac_address::macaddr = %s::macaddr
+            """, (mac,), fetch=False) or 0
+        except Exception as e:
+            flash(f'Error deleting device {mac}: {str(e)}', 'error')
+            continue
     
-    flash(f'Removed {len(selected_devices)} devices', 'danger')
+    if deleted > 0:
+        flash(f'Removed {deleted} devices', 'danger')
+    else:
+        flash('No devices were removed. Please check the MAC addresses.', 'warning')

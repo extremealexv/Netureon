@@ -7,12 +7,27 @@ class Database:
         return psycopg2.connect(**Config.DB_CONFIG)
 
     @staticmethod
-    def execute_query(query, params=None):
+    def execute_query(query, params=None, fetch=True):
+        """Execute a query and optionally fetch results
+        
+        Args:
+            query (str): The SQL query to execute
+            params (tuple, optional): Query parameters. Defaults to None.
+            fetch (bool, optional): Whether to fetch results. Defaults to True.
+        
+        Returns:
+            list: Query results if fetch=True, otherwise None
+        """
         conn = Database.get_connection()
         cur = conn.cursor()
         try:
             cur.execute(query, params)
-            result = cur.fetchall()
+            if fetch:
+                result = cur.fetchall()
+            else:
+                result = None
+                if cur.statusmessage.startswith('DELETE') or cur.statusmessage.startswith('UPDATE'):
+                    result = cur.rowcount
             conn.commit()
             return result
         finally:
