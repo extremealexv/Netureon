@@ -90,8 +90,13 @@ CREATE UNIQUE INDEX idx_unique_unresolved_alert
 ON alerts (device_id, alert_type) 
 WHERE NOT is_resolved;
 
--- Grant necessary permissions
-GRANT SELECT, INSERT, UPDATE, DELETE ON alerts TO netguard_app;
-GRANT USAGE, SELECT ON SEQUENCE alerts_id_seq TO netguard_app;
-
-COMMIT;
+-- Grant necessary permissions if the role exists
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_roles WHERE rolname = 'netguard_app'
+    ) THEN
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON alerts TO netguard_app';
+        EXECUTE 'GRANT USAGE, SELECT ON SEQUENCE alerts_id_seq TO netguard_app';
+    END IF;
+END $$;
