@@ -210,14 +210,35 @@ def unknown_devices():
                 deleted = 0
                 for mac in selected_devices:
                     try:
-                        cur.execute("DELETE FROM unknown_devices WHERE mac_address::text = %s", (mac,))
+                        # First try exact match
+                        cur.execute("""
+                            DELETE FROM unknown_devices 
+                            WHERE mac_address::text = %s 
+                            OR mac_address::text = %s::macaddr::text
+                        """, (mac, mac))
+                        if cur.rowcount == 0:
+                            # If no exact match, try to standardize the MAC format
+                            mac_clean = mac.replace('-', ':').lower()
+                            cur.execute("""
+                                DELETE FROM unknown_devices 
+                                WHERE mac_address::text = %s 
+                                OR mac_address::text = %s::macaddr::text
+                                OR REPLACE(mac_address::text, '-', ':') = %s
+                            """, (mac_clean, mac_clean, mac_clean))
                         deleted += cur.rowcount
                     except psycopg2.Error as e:
-                        flash(f'Error deleting device {mac}: {str(e)}', 'error')
+                        # Check if it's an invalid input syntax error
+                        if "invalid input syntax for type macaddr" in str(e):
+                            flash(f'Invalid MAC address format for device {mac}', 'error')
+                        else:
+                            flash(f'Error deleting device {mac}: {str(e)}', 'error')
+                        continue
                 
-                conn.commit()
                 if deleted > 0:
-                    flash(f'Removed {deleted} devices', 'success')
+                    conn.commit()
+                    flash(f'Successfully removed {deleted} devices', 'success')
+                else:
+                    flash('No devices were removed. Please check the MAC addresses.', 'warning')
                 
             elif action == 'approve':
                 notes = request.form.get('notes', '')
@@ -256,22 +277,40 @@ def unknown_devices():
                 if moved > 0:
                     flash(f'Moved {moved} devices to known devices', 'success')
         
-        # Get unknown devices with their detection count
+        # Get unknown devices with their detection count and fix any invalid MAC addresses
         cur.execute("""
+            WITH bad_macs AS (
+                -- Find and fix any rows with invalid MAC addresses
+                UPDATE unknown_devices 
+                SET mac_address = mac_address::macaddr::macaddr  -- This will standardize MAC format
+                WHERE mac_address IS NOT NULL 
+                    AND mac_address::text !~ '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$'
+                RETURNING mac_address
+            )
             SELECT 
-                ud.mac_address::text,
-                ud.last_ip,
-                ud.first_seen::text,
-                ud.last_seen::text,
-                COALESCE(ud.threat_level, 'medium'),
-                COALESCE(ud.notes, ''),
-                COALESCE((
+                COALESCE(ud.mac_address::text, '') as mac,
+                COALESCE(ud.last_ip::text, 'Unknown') as last_ip,
+                COALESCE(TO_CHAR(ud.first_seen, 'YYYY-MM-DD HH24:MI:SS'), 'Never') as first_seen,
+                COALESCE(TO_CHAR(ud.last_seen, 'YYYY-MM-DD HH24:MI:SS'), 'Never') as last_seen,
+                COALESCE(ud.threat_level, 'medium') as threat_level,
+                COALESCE(ud.notes, '') as notes,
+                (
                     SELECT COUNT(*) 
-                    FROM discovery_log 
-                    WHERE mac_address::macaddr = ud.mac_address::macaddr
-                ), 0) as detection_count,
-                'Unknown' as hostname
+                    FROM discovery_log dl
+                    WHERE dl.mac_address::macaddr = ud.mac_address::macaddr
+                ) as detection_count,
+                COALESCE(
+                    (
+                        SELECT dp.hostname 
+                        FROM device_profiles dp 
+                        WHERE dp.mac_address::macaddr = ud.mac_address::macaddr
+                        ORDER BY dp.last_updated DESC 
+                        LIMIT 1
+                    ),
+                    'Unknown'
+                ) as hostname
             FROM unknown_devices ud
+            WHERE ud.mac_address IS NOT NULL  -- Skip any null MAC addresses
             ORDER BY 
                 CASE ud.threat_level
                     WHEN 'high' THEN 1
@@ -286,15 +325,16 @@ def unknown_devices():
         devices = [
             {
                 'mac': dev[0],
-                'last_ip': dev[1] or 'Unknown',
-                'first_seen': dev[2] or 'Never',
-                'last_seen': dev[3] or 'Never',
+                'last_ip': dev[1],
+                'first_seen': dev[2],
+                'last_seen': dev[3],
                 'threat_level': dev[4],
-                'notes': dev[5] or 'No notes',
+                'notes': dev[5] if dev[5] else 'No notes',
                 'detection_count': dev[6],
                 'hostname': dev[7]
             }
             for dev in unknown_devices
+            if dev[0]  # Only include devices with non-empty MAC addresses
         ]
         
     except psycopg2.Error as e:
