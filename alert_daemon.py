@@ -3,7 +3,19 @@ import smtplib
 import requests
 import time
 import os
-        cur.execute("""
+from datetime import datetime, timedelta
+
+def main():
+    # Connect to the PostgreSQL database
+    conn = psycopg2.connect(
+        dbname="netguard",
+        user="netguard",
+        password="netguard",
+        host="localhost"
+    )
+    cur = conn.cursor()
+    
+    cur.execute("""
             WITH formatted_macs AS (
                 SELECT 
                     dl.mac_address,

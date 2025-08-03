@@ -87,7 +87,7 @@ def main_page():
         SELECT k.device_name, k.mac_address::text, k.device_type, k.notes, k.last_seen, k.last_ip,
                EXISTS(
                    SELECT 1 FROM discovery_log d 
-                   WHERE d.mac_address::macaddr = k.mac_address 
+                   WHERE d.mac_address::macaddr = k.mac_address::macaddr 
                    AND d.timestamp > NOW() - INTERVAL '1 hour'
                ) as is_active
         FROM known_devices k
