@@ -210,28 +210,24 @@ def unknown_devices():
                 deleted = 0
                 for mac in selected_devices:
                     try:
-                        # First try exact match
+                        # Clean up the MAC address format
+                        mac_clean = mac.strip().lower()
+                        
+                        # Print debug information
+                        print(f"Attempting to delete MAC: {mac_clean}")
+                        
+                        # Simplified delete query using macaddr type casting
                         cur.execute("""
                             DELETE FROM unknown_devices 
-                            WHERE mac_address::text = %s 
-                            OR mac_address::text = %s::macaddr::text
-                        """, (mac, mac))
-                        if cur.rowcount == 0:
-                            # If no exact match, try to standardize the MAC format
-                            mac_clean = mac.replace('-', ':').lower()
-                            cur.execute("""
-                                DELETE FROM unknown_devices 
-                                WHERE mac_address::text = %s 
-                                OR mac_address::text = %s::macaddr::text
-                                OR REPLACE(mac_address::text, '-', ':') = %s
-                            """, (mac_clean, mac_clean, mac_clean))
+                            WHERE mac_address::text = %s::macaddr::text
+                        """, (mac_clean,))
+                        
                         deleted += cur.rowcount
+                        print(f"Rows deleted: {cur.rowcount}")
+                        
                     except psycopg2.Error as e:
-                        # Check if it's an invalid input syntax error
-                        if "invalid input syntax for type macaddr" in str(e):
-                            flash(f'Invalid MAC address format for device {mac}', 'error')
-                        else:
-                            flash(f'Error deleting device {mac}: {str(e)}', 'error')
+                        print(f"Error deleting MAC {mac_clean}: {str(e)}")
+                        flash(f'Error deleting device {mac}: {str(e)}', 'error')
                         continue
                 
                 if deleted > 0:
