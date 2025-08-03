@@ -96,7 +96,7 @@ def send_email(body):
 def format_device_info(mac, ip, hostname, vendor, ports):
     """Format device information for alerts."""
     return f"""
-🔍 Device Details:
+Device Details:
 MAC: {mac}
 IP: {ip}
 Hostname: {hostname or 'Unknown'}
@@ -146,14 +146,14 @@ def check_for_unknown_devices():
             # Format complete alert details
             device_info = format_device_info(mac, ip, hostname, vendor, ports or [])
             alert_details = f"""
-⚠️ THREAT DETECTED: {threat_level.upper()} Risk Device
+THREAT DETECTED: {threat_level.upper()} Risk Device
 {device_info}
 
-📊 History:
+History:
 First Seen: {first_seen}
 Total Detections: {count}
 
-🚫 Threat Notes: 
+Threat Notes: 
 {notes}
             """.strip()
 
@@ -194,9 +194,9 @@ def check_alerts():
         for alert_id, device_id, timestamp, alert_type, details, severity in rows:
             # Format message based on alert type
             if alert_type == 'new_device':
-                body = f"🆕 New Device Detected\nMAC: {device_id}\nTime: {timestamp}\nDetails: {details}"
+                body = f"NEW Device Detected\nMAC: {device_id}\nTime: {timestamp}\nDetails: {details}"
             elif alert_type == 'unknown_device':
-                body = f"⚠️ ALERT: {severity.upper()} Risk Threat Device Connected\n{details}\nDetected at: {timestamp}"
+                body = f"ALERT: {severity.upper()} Risk Threat Device Connected\n{details}\nDetected at: {timestamp}"
             else:
                 body = f"Alert ({severity}): {details}\nDevice: {device_id}\nTime: {timestamp}"
 
@@ -212,7 +212,7 @@ def check_alerts():
         print(f"Database error: {e}")
 
 if __name__ == "__main__":
-    print("🔔 Alert daemon started...")
+    print("Alert daemon started...")
     while True:
         check_for_unknown_devices()  # Check for unknown device connections
         check_alerts()               # Process pending alerts
