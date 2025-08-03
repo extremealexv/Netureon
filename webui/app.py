@@ -40,9 +40,12 @@ def main_page():
                 print(f"Moving device to unknown: {mac}")
                 
                 cur.execute("""
+                    WITH mac_addr AS (
+                        SELECT %s::macaddr AS addr
+                    )
                     SELECT last_ip::text, device_name, last_seen, first_seen 
                     FROM known_devices 
-                    WHERE mac_address = %s::macaddr
+                    WHERE mac_address = (SELECT addr FROM mac_addr)
                 """, (mac,))
                 device = cur.fetchone()
                 

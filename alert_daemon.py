@@ -42,9 +42,11 @@ def main():
                 dp.open_ports
             FROM formatted_macs fm
             JOIN unknown_devices ud ON fm.formatted_mac = ud.mac_address
-            LEFT JOIN device_profiles dp ON fm.formatted_mac = dp.mac_address::macaddroad_dotenv
+            LEFT JOIN device_profiles dp ON fm.formatted_mac = dp.mac_address
+            """)
 
 # Load environment variables
+from dotenv import load_dotenv
 load_dotenv()
 
 # Database config
@@ -139,7 +141,7 @@ def check_for_unknown_devices():
             # Update last_seen in unknown_devices
             cursor.execute("""
                 UPDATE unknown_devices 
-                SET last_seen = %s, last_ip = %s 
+                SET last_seen = %s, last_ip = %s::inet 
                 WHERE mac_address = %s::macaddr
             """, (timestamp, ip, mac))
 
