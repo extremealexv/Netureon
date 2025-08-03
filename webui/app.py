@@ -276,13 +276,14 @@ def unknown_devices():
         # Get unknown devices with their detection count and fix any invalid MAC addresses
         cur.execute("""
             WITH unknown_devices_formatted AS (
-                -- First format all MAC addresses consistently
+                -- First format all MAC addresses consistently and print their current state
                 SELECT 
                     id,
-                    CASE 
-                        WHEN mac_address IS NULL THEN NULL
-                        ELSE LOWER(REPLACE(mac_address::macaddr::text, '-', ':'))
-                    END as mac_address,
+                    mac_address,
+                    COALESCE(
+                        LOWER(REPLACE(mac_address::macaddr::text, '-', ':')), 
+                        'no_mac'
+                    ) as formatted_mac,
                     last_ip,
                     first_seen,
                     last_seen,
@@ -291,40 +292,60 @@ def unknown_devices():
                 FROM unknown_devices
             )
             SELECT 
-                COALESCE(ud.mac_address, '') as mac,
-                COALESCE(ud.last_ip::text, 'Unknown') as last_ip,
-                COALESCE(TO_CHAR(ud.first_seen, 'YYYY-MM-DD HH24:MI:SS'), 'Never') as first_seen,
-                COALESCE(TO_CHAR(ud.last_seen, 'YYYY-MM-DD HH24:MI:SS'), 'Never') as last_seen,
-                COALESCE(ud.threat_level, 'medium') as threat_level,
-                COALESCE(ud.notes, '') as notes,
+                formatted_mac as mac,
+                COALESCE(last_ip::text, 'Unknown') as last_ip,
+                COALESCE(TO_CHAR(first_seen, 'YYYY-MM-DD HH24:MI:SS'), 'Never') as first_seen,
+                COALESCE(TO_CHAR(last_seen, 'YYYY-MM-DD HH24:MI:SS'), 'Never') as last_seen,
+                COALESCE(threat_level, 'medium') as threat_level,
+                COALESCE(notes, '') as notes,
                 (
                     SELECT COUNT(*) 
                     FROM discovery_log dl
-                    WHERE dl.mac_address::macaddr = ud.mac_address::macaddr
+                    WHERE dl.mac_address::macaddr = udf.mac_address::macaddr
                 ) as detection_count,
-                'Unknown' as hostname
-            FROM unknown_devices_formatted ud
-            WHERE ud.mac_address IS NOT NULL  -- Skip any null MAC addresses
+                'Unknown' as hostname,
+                mac_address as original_mac  -- Keep original for debugging
+            FROM unknown_devices_formatted udf
+            WHERE mac_address IS NOT NULL  -- Skip any null MAC addresses
             ORDER BY 
-                CASE ud.threat_level
+                CASE threat_level
                     WHEN 'high' THEN 1
                     WHEN 'medium' THEN 2
                     WHEN 'low' THEN 3
                     ELSE 4
                 END,
-                ud.last_seen DESC NULLS LAST
+                last_seen DESC NULLS LAST
         """)
         unknown_devices = cur.fetchall()
         
         # Debug: Print raw data from database
-        print("Raw data from database:")
+        print("\nRaw data from database:")
         for dev in unknown_devices:
             print(f"MAC: '{dev[0]}', IP: '{dev[1]}', First: '{dev[2]}', Last: '{dev[3]}', Threat: '{dev[4]}', Notes: '{dev[5]}'")
         
+        # Debug: Print all POST data if it's a POST request
+        if request.method == 'POST':
+            print("\nPOST Data:")
+            print(f"Action: {request.form.get('action')}")
+            print(f"Selected devices: {request.form.getlist('selected_devices')}")
+            print(f"Threat level: {request.form.get('threat_level')}")
+            print(f"Notes: {request.form.get('notes')}")
+        
+        print("\nProcessing database results:")
         devices = []
         for dev in unknown_devices:
-            mac = dev[0].strip() if dev[0] else ''  # Remove any whitespace
-            if not mac:  # Skip entries with empty MACs
+            print(f"\nProcessing device:")
+            print(f"Original MAC format: {dev[8] if len(dev) > 8 else 'N/A'}")
+            print(f"Formatted MAC: {dev[0]}")
+            print(f"IP: {dev[1]}")
+            print(f"First Seen: {dev[2]}")
+            print(f"Last Seen: {dev[3]}")
+            print(f"Threat Level: {dev[4]}")
+            print(f"Notes: {dev[5]}")
+            
+            mac = dev[0].strip() if dev[0] else ''
+            if not mac or mac == 'no_mac':
+                print(f"Skipping invalid MAC address entry")
                 continue
                 
             device = {
@@ -337,6 +358,7 @@ def unknown_devices():
                 'detection_count': dev[6],
                 'hostname': dev[7]
             }
+            print(f"Created device object: {device}")
             devices.append(device)
         
     except psycopg2.Error as e:
