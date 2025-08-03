@@ -135,9 +135,9 @@
         <h1>🕵️ Review New Devices</h1>
         
         <nav>
-            <a href="{{ url_for('main_page') }}">Known Devices</a>
-            <a href="{{ url_for('review_page') }}">Review New</a>
-            <a href="{{ url_for('unknown_devices') }}">Unknown Devices</a>
+            <a href="{{ url_for('main.main_page') }}">Known Devices</a>
+            <a href="{{ url_for('review.review_page') }}">Review New</a>
+            <a href="{{ url_for('unknown.unknown_devices') }}">Unknown Devices</a>
         </nav>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -148,7 +148,7 @@
             {% endif %}
         {% endwith %}
 
-        <form method="post" action="{{ url_for('review_page') }}">
+        <form method="post" action="{{ url_for('review.review_page') }}">
             <div class="device-grid">
                 {% for device in devices %}
                     {% if not device[6] %}  {# if not reviewed #}

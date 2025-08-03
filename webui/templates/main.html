@@ -199,7 +199,9 @@
                             {% endif %}
                         </div>
                         <p><strong>MAC:</strong> {{ device[1] }}</p>
-                        <p><strong>Last Seen:</strong> {{ device[2]|default('Never', true) }}</p>
+                        <p><strong>Type:</strong> {{ device[2]|default('Unknown', true) }}</p>
+                        <p><strong>Last Seen:</strong> {{ device[4]|default('Never', true) }}</p>
+                        <p><strong>Last IP:</strong> {{ device[5]|default('Unknown', true) }}</p>
                         <p><strong>Notes:</strong> {{ device[3]|default('No notes', true) }}</p>
                     </div>
                 </div>
