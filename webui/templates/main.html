@@ -166,8 +166,8 @@
         <h1>🔐 Known Devices</h1>
         
         <nav>
-            <a href="{{ url_for('index') }}">Known Devices</a>
-            <a href="{{ url_for('review') }}">
+            <a href="{{ url_for('main_page') }}">Known Devices</a>
+            <a href="{{ url_for('review_page') }}">
                 Review New {% if new_device_count %}<span class="badge">{{ new_device_count }}</span>{% endif %}
             </a>
             <a href="{{ url_for('unknown_devices') }}">
