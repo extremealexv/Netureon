@@ -87,18 +87,43 @@ def send_email(body):
     if missing:
         print(f"Email configuration incomplete. Missing: {', '.join(missing)}")
         print("Run setup_email.sh to configure email settings")
-        return
+        return False
         
     try:
-        print(f"Sending email notification to {EMAIL_TO}")
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            message = f"Subject:{EMAIL_SUBJECT}\n\n{body}"
-            server.sendmail(EMAIL_FROM, EMAIL_TO, message)
-            print("Email sent successfully")
+        print(f"Attempting to send email notification to {EMAIL_TO}")
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.set_debuglevel(1)  # Enable debug output
+        
+        # Start TLS for security
+        print("Starting TLS...")
+        server.starttls()
+        
+        # Authentication
+        print("Authenticating...")
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        
+        # Prepare message
+        message = f"Subject: {EMAIL_SUBJECT}\n\n{body}"
+        message = message.encode('utf-8')  # Encode message as UTF-8
+        
+        # Send email
+        print("Sending email...")
+        server.sendmail(EMAIL_FROM, EMAIL_TO, message)
+        print("Email sent successfully")
+        
+        # Close the connection
+        server.quit()
+        return True
+        
+    except smtplib.SMTPServerDisconnected as e:
+        print(f"SMTP Server disconnected: {e}")
+        return False
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"SMTP Authentication failed: {e}")
+        return False
     except Exception as e:
-        print(f"Email error: {e}")
+        print(f"Email error: {type(e).__name__}: {e}")
+        return False
 
 # def send_telegram(message):
 #     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -201,10 +226,19 @@ def check_alerts():
             SELECT id, device_id, detected_at, alert_type, details, severity 
             FROM alerts 
             WHERE NOT is_resolved 
-            ORDER BY severity DESC, detected_at ASC
+            AND alert_type IN ('unknown_device', 'new_device')  -- Only alert for unknown and new devices
+            ORDER BY 
+                severity DESC,
+                CASE alert_type 
+                    WHEN 'unknown_device' THEN 1
+                    WHEN 'new_device' THEN 2
+                    ELSE 3
+                END,
+                detected_at ASC
         """)
         rows = cursor.fetchall()
-
+        
+        max_retries = 3
         for alert_id, device_id, timestamp, alert_type, details, severity in rows:
             # Format message based on alert type
             if alert_type == 'new_device':
@@ -212,11 +246,26 @@ def check_alerts():
             elif alert_type == 'unknown_device':
                 body = f"ALERT: {severity.upper()} Risk Threat Device Connected\n{details}\nDetected at: {timestamp}"
             else:
-                body = f"Alert ({severity}): {details}\nDevice: {device_id}\nTime: {timestamp}"
-
-            send_email(body)
-            # send_telegram(body)
-            cursor.execute("UPDATE alerts SET is_resolved = TRUE WHERE id = %s", (alert_id,))
+                continue  # Skip other alert types
+            
+            # Try to send email with retries
+            for retry in range(max_retries):
+                if send_email(body):
+                    cursor.execute("""
+                        UPDATE alerts 
+                        SET is_resolved = TRUE,
+                            resolved_at = NOW(),
+                            resolution_notes = 'Alert sent successfully'
+                        WHERE id = %s
+                    """, (alert_id,))
+                    conn.commit()
+                    break
+                else:
+                    if retry < max_retries - 1:
+                        print(f"Retrying email in 5 seconds... (Attempt {retry + 1}/{max_retries})")
+                        time.sleep(5)
+                    else:
+                        print(f"Failed to send alert after {max_retries} attempts")
 
         conn.commit()
         cursor.close()
