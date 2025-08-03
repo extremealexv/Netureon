@@ -5,6 +5,7 @@ from datetime import datetime
 import ipaddress
 import os
 from dotenv import load_dotenv
+from device_profiler import DeviceProfiler
 
 # Load environment variables
 load_dotenv()
@@ -19,13 +20,11 @@ DB_CONFIG = {
 }
 
 def get_local_subnet():
-    """Detects the local subnet using the default route interface."""
     try:
-        # Get default gateway interface
         gws = netifaces.gateways()
         default_iface = gws['default'][netifaces.AF_INET][1]
-
         addrs = netifaces.ifaddresses(default_iface)
+
         if netifaces.AF_INET in addrs:
             inet_info = addrs[netifaces.AF_INET][0]
             ip = inet_info.get('addr')
@@ -36,11 +35,9 @@ def get_local_subnet():
     except Exception as e:
         print(f"⚠️ Failed to detect default interface: {e}")
 
-    # Fallback: scan all interfaces
     for iface in netifaces.interfaces():
         if "Virtual" in iface or "VMware" in iface or "Loopback" in iface:
             continue
-
         addrs = netifaces.ifaddresses(iface)
         if netifaces.AF_INET in addrs:
             inet_info = addrs[netifaces.AF_INET][0]
@@ -53,7 +50,6 @@ def get_local_subnet():
     raise RuntimeError("No active LAN interface with IPv4 found.")
 
 def scan_network(subnet):
-    """Scans the network and returns list of (IP, MAC) tuples."""
     arp = ARP(pdst=subnet)
     ether = Ether(dst="ff:ff:ff:ff:ff:ff")
     packet = ether / arp
@@ -65,7 +61,6 @@ def scan_network(subnet):
     return devices
 
 def update_database(devices):
-    """Updates discovery_log and new_devices based on scan results."""
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
 
@@ -95,11 +90,24 @@ def update_database(devices):
                     WHERE mac_address = %s
                 """, (timestamp, ip, mac))
             else:
+                # Profile device
+                profiler = DeviceProfiler(mac, ip)
+                vendor = profiler.get_mac_vendor()
+                hostname = profiler.get_hostname()
+                open_ports = profiler.scan_open_ports()
+
+                notes = f"Vendor: {vendor}, Hostname: {hostname}"
+                if open_ports:
+                    notes += f", Open Ports: {', '.join(map(str, open_ports))}"
+                else:
+                    notes += ", No common ports open"
+
                 # Insert new unknown device
                 cur.execute("""
-                    INSERT INTO new_devices (mac_address, first_seen, last_seen, last_ip, reviewed)
-                    VALUES (%s, %s, %s, %s, FALSE)
-                """, (mac, timestamp, timestamp, ip))
+                    INSERT INTO new_devices (mac_address, first_seen, last_seen, last_ip, reviewed,
+                                             device_name, device_type, notes)
+                    VALUES (%s, %s, %s, %s, FALSE, %s, %s, %s)
+                """, (mac, timestamp, timestamp, ip, hostname, vendor, notes))
 
     conn.commit()
     cur.close()
