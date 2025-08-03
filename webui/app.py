@@ -97,7 +97,7 @@ def main_page():
     conn.close()
     
     return render_template('main.html', 
-                         hosts=known_hosts, 
+                         devices=known_hosts, 
                          new_device_count=new_device_count,
                          active_threats=active_threats,
                          now=datetime.now())
