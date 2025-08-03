@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container">
     <h2>⚠️ Unknown Devices</h2>
-    <form method="post" action="/unknown">
+    <form method="post" action="{{ url_for('unknown.unknown_devices') }}">
         <div class="device-grid">
             {% for device in devices %}
             <div class="device-card threat-{{ device.threat_level }}">

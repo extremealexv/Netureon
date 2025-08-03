@@ -166,11 +166,11 @@
         <h1>🔐 Known Devices</h1>
         
         <nav>
-            <a href="{{ url_for('main_page') }}">Known Devices</a>
-            <a href="{{ url_for('review_page') }}">
+            <a href="{{ url_for('main.main_page') }}">Known Devices</a>
+            <a href="{{ url_for('review.review_page') }}">
                 Review New {% if new_device_count %}<span class="badge">{{ new_device_count }}</span>{% endif %}
             </a>
-            <a href="{{ url_for('unknown_devices') }}">
+            <a href="{{ url_for('unknown.unknown_devices') }}">
                 Unknown Devices {% if active_threats %}<span class="badge">{{ active_threats }}</span>{% endif %}
             </a>
         </nav>
@@ -184,7 +184,7 @@
         {% endwith %}
 
         {% block content %}
-        <form method="post" action="{{ url_for('main_page') }}">
+        <form method="post" action="{{ url_for('main.main_page') }}">
             <div class="device-grid">
                 {% for device in devices %}
                 <div class="device-card">
