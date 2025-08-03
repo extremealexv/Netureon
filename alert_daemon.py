@@ -169,11 +169,12 @@ def check_for_unknown_devices():
                 ),
                 'medium'
             FROM new_devices nd
+            LEFT JOIN known_devices kd ON kd.mac_address::macaddr = nd.mac_address::macaddr
             LEFT JOIN alerts a ON 
                 a.device_id::macaddr = nd.mac_address::macaddr AND 
-                a.alert_type = 'new_device' AND 
-                NOT a.is_resolved
-            WHERE a.id IS NULL
+                a.alert_type = 'new_device'
+            WHERE kd.mac_address IS NULL  -- Ensure device is not in known_devices
+            AND a.id IS NULL             -- Ensure we haven't alerted on this device before
             RETURNING device_id::text;
         """)
         new_device_alerts = cursor.fetchall()
