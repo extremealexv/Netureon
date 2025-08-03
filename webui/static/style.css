@@ -23,3 +23,18 @@ th, td {
 th {
     background-color: #eee;
 }
+
+nav {
+    margin-bottom: 20px;
+}
+
+nav a {
+    font-weight: bold;
+    color: #0077cc;
+    text-decoration: none;
+    margin-right: 15px;
+}
+
+nav a:hover {
+    text-decoration: underline;
+}

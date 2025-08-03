@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Review New Devices</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>🕵️ Review New Devices</h1>
+    <form method="POST" action="/add_known">
+        <table>
+            <tr>
+                <th>Select</th>
+                <th>Device Name</th>
+                <th>MAC Address</th>
+                <th>Type</th>
+                <th>Last Seen</th>
+                <th>IP</th>
+                <th>Notes</th>
+            </tr>
+            {% for device in new_devices %}
+            <tr>
+                <td><input type="checkbox" name="selected" value="{{ device[1] }}"></td>
+                <td>{{ device[0] }}</td>
+                <td>{{ device[1] }}</td>
+                <td>{{ device[2] }}</td>
+                <td>{{ device[3] }}</td>
+                <td>{{ device[4] }}</td>
+                <td>{{ device[5] }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        <button type="submit">Add Selected to Known List</button>
+    </form>
+</body>
+</html>
