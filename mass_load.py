@@ -28,7 +28,7 @@ def promote_devices():
 
     # Fetch unreviewed new devices
     cur.execute("""
-        SELECT mac_address, last_ip FROM new_devices
+        SELECT mac_address::macaddr::text, last_ip FROM new_devices
         WHERE reviewed = FALSE AND last_ip IS NOT NULL
     """)
     devices = cur.fetchall()
@@ -46,7 +46,7 @@ def promote_devices():
         # Insert into known_devices
         cur.execute("""
             INSERT INTO known_devices (mac_address, device_name, device_type, notes, first_seen, last_seen, last_ip)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s::macaddr, %s, %s, %s, %s, %s, %s::inet)
             ON CONFLICT (mac_address) DO NOTHING
         """, (mac, hostname, vendor, notes, timestamp, timestamp, ip))
 
