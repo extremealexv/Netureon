@@ -1,0 +1,114 @@
+{% extends "main.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>🖥️ System Information</h2>
+    
+    {% if error %}
+    <div class="alert alert-danger">
+        {{ error }}
+    </div>
+    {% else %}
+    
+    <!-- NetGuard Version -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>🛡️ NetGuard Information</h4>
+        </div>
+        <div class="card-body">
+            <p><strong>Version:</strong> {{ info.netguard_version }}</p>
+        </div>
+    </div>
+
+    <!-- Operating System -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>💻 Operating System</h4>
+        </div>
+        <div class="card-body">
+            <p><strong>System:</strong> {{ info.os.system }}</p>
+            <p><strong>Release:</strong> {{ info.os.release }}</p>
+            <p><strong>Version:</strong> {{ info.os.version }}</p>
+            <p><strong>Machine:</strong> {{ info.os.machine }}</p>
+            <p><strong>Processor:</strong> {{ info.os.processor }}</p>
+            <p><strong>Python Version:</strong> {{ info.os.python_version }}</p>
+        </div>
+    </div>
+
+    <!-- System Resources -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>📊 System Resources</h4>
+        </div>
+        <div class="card-body">
+            <h5>CPU</h5>
+            <div class="progress mb-3">
+                <div class="progress-bar" role="progressbar" 
+                     style="width: {{ info.resources.cpu_percent }}%"
+                     aria-valuenow="{{ info.resources.cpu_percent }}" 
+                     aria-valuemin="0" aria-valuemax="100">
+                    {{ info.resources.cpu_percent }}%
+                </div>
+            </div>
+            <p><strong>CPU Cores:</strong> {{ info.resources.cpu_count }}</p>
+
+            <h5>Memory</h5>
+            <div class="progress mb-3">
+                <div class="progress-bar" role="progressbar" 
+                     style="width: {{ info.resources.memory.percent }}%"
+                     aria-valuenow="{{ info.resources.memory.percent }}" 
+                     aria-valuemin="0" aria-valuemax="100">
+                    {{ info.resources.memory.percent }}%
+                </div>
+            </div>
+            <p><strong>Total Memory:</strong> {{ (info.resources.memory.total / 1024 / 1024 / 1024) | round(2) }} GB</p>
+            <p><strong>Available Memory:</strong> {{ (info.resources.memory.available / 1024 / 1024 / 1024) | round(2) }} GB</p>
+
+            <h5>Disk</h5>
+            <div class="progress mb-3">
+                <div class="progress-bar" role="progressbar" 
+                     style="width: {{ info.resources.disk.percent }}%"
+                     aria-valuenow="{{ info.resources.disk.percent }}" 
+                     aria-valuemin="0" aria-valuemax="100">
+                    {{ info.resources.disk.percent }}%
+                </div>
+            </div>
+            <p><strong>Total Space:</strong> {{ (info.resources.disk.total / 1024 / 1024 / 1024) | round(2) }} GB</p>
+            <p><strong>Used Space:</strong> {{ (info.resources.disk.used / 1024 / 1024 / 1024) | round(2) }} GB</p>
+            <p><strong>Free Space:</strong> {{ (info.resources.disk.free / 1024 / 1024 / 1024) | round(2) }} GB</p>
+        </div>
+    </div>
+
+    <!-- Network Interfaces -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>🌐 Network Interfaces</h4>
+        </div>
+        <div class="card-body">
+            {% for iface, data in info.network.items() %}
+            <div class="mb-3">
+                <h5>{{ iface }}</h5>
+                <p><strong>IP Address:</strong> {{ data.ip }}</p>
+                <p><strong>Netmask:</strong> {{ data.netmask }}</p>
+                {% if data.mac %}
+                <p><strong>MAC Address:</strong> {{ data.mac }}</p>
+                {% endif %}
+            </div>
+            {% if not loop.last %}<hr>{% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Database -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>🗄️ Database</h4>
+        </div>
+        <div class="card-body">
+            <p><strong>PostgreSQL Version:</strong> {{ info.database }}</p>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}
