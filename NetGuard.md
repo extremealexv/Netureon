@@ -1,6 +1,6 @@
 # 📘 NetGuard Technical Documentation
-**Version:** 1.0  
-**Last Updated:** August 3, 2025  
+**Version:** 1.2.1  
+**Last Updated:** August 31, 2025  
 **Author:** Alexander Vasilyev
 
 ---
