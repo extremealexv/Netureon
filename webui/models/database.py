@@ -1,10 +1,30 @@
+"""Database connection and query management."""
+
+import os
 import psycopg2
-from config.config import Config
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Database connection parameters
+DB_CONFIG = {
+    'dbname': os.getenv('DB_NAME'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'host': os.getenv('DB_HOST'),
+    'port': os.getenv('DB_PORT')
+}
+
+def get_db_connection():
+    """Create a database connection."""
+    return psycopg2.connect(**DB_CONFIG)
 
 class Database:
     @staticmethod
     def get_connection():
-        return psycopg2.connect(**Config.DB_CONFIG)
+        """Get a database connection using environment variables."""
+        return get_db_connection()
 
     @staticmethod
     def execute_query(query, params=None, fetch=True):
