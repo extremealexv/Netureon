@@ -4,6 +4,9 @@ scapy==2.5.0           # Network packet manipulation and ARP scanning
 netifaces==0.11.0      # Network interface information
 python-nmap==0.7.1     # Port scanning functionality
 
+# System monitoring
+psutil==5.9.5          # System and process utilities
+
 # Database and environment
 psycopg2-binary==2.9.9 # PostgreSQL adapter
 python-dotenv==1.0.0   # Environment variable management
