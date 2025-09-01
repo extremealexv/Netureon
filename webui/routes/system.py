@@ -11,7 +11,7 @@ from flask import Blueprint, render_template
 # Add parent directory to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 from version import __version__
-from ..models.database import get_db_connection
+from ..models.database import Database
 
 bp = Blueprint('system', __name__)
 
@@ -42,7 +42,7 @@ def get_system_info():
     # PostgreSQL Version
     db_version = "Unknown"
     try:
-        with get_db_connection() as conn:
+        with Database.get_connection() as conn:
             cur = conn.cursor()
             cur.execute('SELECT version();')
             db_version = cur.fetchone()[0]
