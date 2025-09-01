@@ -173,6 +173,7 @@
             <a href="{{ url_for('unknown.unknown_devices') }}">
                 Unknown Devices {% if active_threats %}<span class="badge">{{ active_threats }}</span>{% endif %}
             </a>
+            <a href="{{ url_for('system.system_info') }}">System Info</a>
         </nav>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
