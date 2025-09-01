@@ -1,0 +1,15 @@
+[Unit]
+Description=NetGuard Web Interface
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=orangepi
+WorkingDirectory=/home/orangepi/NetGuard
+Environment=PYTHONPATH=/home/orangepi/NetGuard
+ExecStart=/home/orangepi/NetGuard/venv/bin/python webui/app.py
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

@@ -5,9 +5,13 @@ NetGuard: Main entry point for network security tools.
 Version 1.2.1
 """
 
-from version import __version__, VERSION_INFO
 import logging
 import sys
+import os
+
+# Add the project root directory to the Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from version import __version__, VERSION_INFO
 
 def check_version():
     """Check Python version compatibility."""
