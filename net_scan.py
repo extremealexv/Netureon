@@ -1,14 +1,30 @@
+"""Network scanning module for NetGuard.
+
+This module provides network discovery and device tracking functionality using
+ARP scanning and device profiling capabilities.
+"""
+
 import psycopg2
 import netifaces
 from scapy.all import ARP, Ether, srp
 from datetime import datetime
 import ipaddress
 import os
+import logging
 from dotenv import load_dotenv
 from device_profiler import DeviceProfiler
+from version import __version__
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
+logger.info(f"NetGuard Scanner v{__version__} initialized")
 
 # PostgreSQL connection settings
 DB_CONFIG = {
@@ -20,6 +36,15 @@ DB_CONFIG = {
 }
 
 def get_local_subnet():
+    """
+    Detect and return the local subnet for network scanning.
+    
+    Returns:
+        str: CIDR notation of the local subnet (e.g., '192.168.1.0/24')
+        
+    Raises:
+        RuntimeError: If no suitable network interface is found
+    """
     try:
         gws = netifaces.gateways()
         default_iface = gws['default'][netifaces.AF_INET][1]
@@ -31,10 +56,12 @@ def get_local_subnet():
             netmask = inet_info.get('netmask')
             if ip and netmask and not ip.startswith("127."):
                 network = ipaddress.IPv4Network(f"{ip}/{netmask}", strict=False)
+                logger.info(f"Using default interface {default_iface} with network {network}")
                 return str(network)
     except Exception as e:
-        print(f"⚠️ Failed to detect default interface: {e}")
+        logger.warning(f"Failed to detect default interface: {e}")
 
+    logger.info("Scanning available network interfaces...")
     for iface in netifaces.interfaces():
         if "Virtual" in iface or "VMware" in iface or "Loopback" in iface:
             continue
@@ -49,16 +76,41 @@ def get_local_subnet():
 
     raise RuntimeError("No active LAN interface with IPv4 found.")
 
-def scan_network(subnet):
+def scan_network(subnet, timeout=3, retry=2):
+    """
+    Perform ARP scan on the specified subnet to discover active devices.
+    
+    Args:
+        subnet (str): Target subnet in CIDR notation
+        timeout (int): Timeout for each scan attempt in seconds
+        retry (int): Number of retry attempts for failed scans
+        
+    Returns:
+        list: List of tuples containing (ip_address, mac_address) for discovered devices
+    """
+    logger.info(f"Starting network scan on subnet {subnet}")
     arp = ARP(pdst=subnet)
     ether = Ether(dst="ff:ff:ff:ff:ff:ff")
     packet = ether / arp
-    result = srp(packet, timeout=3, verbose=0)[0]
-
-    devices = []
-    for sent, received in result:
-        devices.append((received.psrc, received.hwsrc))
-    return devices
+    
+    devices = set()  # Using set to avoid duplicates
+    attempts = 0
+    
+    while attempts < retry:
+        try:
+            result = srp(packet, timeout=timeout, verbose=0)[0]
+            for sent, received in result:
+                devices.add((received.psrc, received.hwsrc))
+            break  # Success, exit loop
+        except Exception as e:
+            attempts += 1
+            logger.warning(f"Scan attempt {attempts} failed: {e}")
+            if attempts == retry:
+                logger.error("All scan attempts failed")
+                raise
+    
+    logger.info(f"Discovered {len(devices)} devices")
+    return list(devices)
 
 def update_database(devices):
     conn = psycopg2.connect(**DB_CONFIG)
