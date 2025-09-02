@@ -7,6 +7,7 @@ import psutil
 import netifaces
 import psycopg2
 from flask import Blueprint, render_template
+from sqlalchemy import text
 
 # Add parent directory to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
@@ -42,10 +43,9 @@ def get_system_info():
     # PostgreSQL Version
     db_version = "Unknown"
     try:
-        with Database.get_connection() as conn:
-            cur = conn.cursor()
-            cur.execute('SELECT version();')
-            db_version = cur.fetchone()[0]
+        from ..models.database import db
+        result = db.session.execute(text('SELECT version();'))
+        db_version = result.scalar()
     except Exception as e:
         db_version = f"Error: {str(e)}"
     
