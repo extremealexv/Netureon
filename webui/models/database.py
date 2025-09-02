@@ -55,12 +55,20 @@ class Database:
         return result.fetchone()
 
     def _execute_transaction_impl(self, queries):
-        """Execute multiple queries in a transaction."""
+        """Execute multiple queries in a transaction.
+        
+        Args:
+            queries (list): List of tuples containing (query, params) pairs
+                where params can be a dict or tuple
+        """
         self._ensure_context()
         try:
             for query, params in queries:
                 if params is None:
                     params = {}
+                elif isinstance(params, tuple):
+                    # Convert tuple parameters to a dict format
+                    params = {f"param_{i}": val for i, val in enumerate(params)}
                 db.session.execute(text(query), params)
             db.session.commit()
         except Exception as e:
