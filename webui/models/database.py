@@ -2,6 +2,7 @@
 
 import os
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -21,76 +22,53 @@ def init_db(app):
     
     # Initialize SQLAlchemy with the app
     db.init_app(app)
-    return psycopg2.connect(**DB_CONFIG)
 
 class Database:
     @staticmethod
-    def get_connection():
-        """Get a database connection using environment variables."""
-        return get_db_connection()
-
-    @staticmethod
     def execute_query(query, params=None, fetch=True):
-        """Execute a query and optionally fetch results
+        """Execute a query and optionally fetch results using SQLAlchemy
         
         Args:
             query (str): The SQL query to execute
-            params (tuple, optional): Query parameters. Defaults to None.
+            params (dict, optional): Query parameters. Defaults to None.
             fetch (bool, optional): Whether to fetch results. Defaults to True.
         
         Returns:
             list: Query results if fetch=True, otherwise None
         """
-        conn = Database.get_connection()
-        cur = conn.cursor()
-        try:
-            cur.execute(query, params)
+        with db.engine.connect() as conn:
+            if params is None:
+                params = {}
+            result = conn.execute(text(query), params)
             if fetch:
-                result = cur.fetchall()
-            else:
-                result = None
-                if cur.statusmessage.startswith('DELETE') or cur.statusmessage.startswith('UPDATE'):
-                    result = cur.rowcount
-            conn.commit()
-            return result
-        finally:
-            cur.close()
-            conn.close()
+                return result.fetchall()
+            return result.rowcount if result.rowcount > -1 else None
 
     @staticmethod
     def execute_query_single(query, params=None):
-        """Execute a query and fetch a single row
+        """Execute a query and fetch a single row using SQLAlchemy
         
         Args:
             query (str): The SQL query to execute
-            params (tuple, optional): Query parameters. Defaults to None.
+            params (dict, optional): Query parameters. Defaults to None.
         
         Returns:
             tuple: A single row result or None if no results
         """
-        conn = Database.get_connection()
-        cur = conn.cursor()
-        try:
-            cur.execute(query, params)
-            result = cur.fetchone()
-            conn.commit()
-            return result
-        finally:
-            cur.close()
-            conn.close()
+        with db.engine.connect() as conn:
+            if params is None:
+                params = {}
+            result = conn.execute(text(query), params)
+            return result.fetchone()
 
     @staticmethod
     def execute_transaction(queries):
-        """Execute multiple queries in a transaction"""
-        conn = Database.get_connection()
-        cur = conn.cursor()
-        try:
-            for query, params in queries:
-                cur.execute(query, params)
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            cur.close()
-            conn.close()
+        """Execute multiple queries in a transaction using SQLAlchemy"""
+        with db.engine.begin() as conn:
+            try:
+                for query, params in queries:
+                    if params is None:
+                        params = {}
+                    conn.execute(text(query), params)
+            except Exception as e:
+                raise e
