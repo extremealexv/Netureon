@@ -15,6 +15,7 @@ import logging
 from dotenv import load_dotenv
 from device_profiler import DeviceProfiler
 from version import __version__
+from webui.app import create_app
 from webui.utils.telegram_notifier import TelegramNotifier
 
 # Configure logging
@@ -207,11 +208,18 @@ def update_database(devices):
 
 if __name__ == "__main__":
     try:
+        # Initialize Flask application
+        app = create_app()
+        
+        # Get network info and scan
         subnet = get_local_subnet()
         print(f"🔍 Scanning network: {subnet}")
         devices = scan_network(subnet)
         print(f"✅ Found {len(devices)} devices.")
-        update_database(devices)
-        print("📦 Database updated.")
+        
+        # Update database within application context
+        with app.app_context():
+            update_database(devices)
+            print("📦 Database updated.")
     except Exception as e:
         print(f"❌ Error: {e}")
