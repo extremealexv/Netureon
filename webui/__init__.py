@@ -12,10 +12,12 @@ def create_app():
     from .routes.review import review
     from .routes.unknown import unknown
     from .routes.system import bp as system_bp
+    from .routes.config import config_bp
     
     app.register_blueprint(main)
     app.register_blueprint(review)
     app.register_blueprint(unknown)
     app.register_blueprint(system_bp)
+    app.register_blueprint(config_bp)
     
     return app

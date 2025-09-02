@@ -1,0 +1,101 @@
+{% extends "main.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>NetGuard Configuration</h2>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('config.config') }}">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>Email Notifications</h4>
+            </div>
+            <div class="card-body">
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" id="enable_email_notifications" name="enable_email_notifications" value="true" {% if settings.enable_email_notifications == 'true' %}checked{% endif %}>
+                    <label class="form-check-label" for="enable_email_notifications">Enable Email Notifications</label>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="smtp_server" class="form-label">SMTP Server</label>
+                            <input type="text" class="form-control" id="smtp_server" name="smtp_server" value="{{ settings.smtp_server }}">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="smtp_port" class="form-label">SMTP Port</label>
+                            <input type="number" class="form-control" id="smtp_port" name="smtp_port" value="{{ settings.smtp_port }}">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="smtp_username" class="form-label">SMTP Username</label>
+                    <input type="text" class="form-control" id="smtp_username" name="smtp_username" value="{{ settings.smtp_username }}">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="smtp_password" class="form-label">SMTP Password</label>
+                    <input type="password" class="form-control" id="smtp_password" name="smtp_password" value="{{ settings.smtp_password }}">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="smtp_from_address" class="form-label">From Email Address</label>
+                    <input type="email" class="form-control" id="smtp_from_address" name="smtp_from_address" value="{{ settings.smtp_from_address }}">
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>Telegram Notifications</h4>
+            </div>
+            <div class="card-body">
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" id="enable_telegram_notifications" name="enable_telegram_notifications" value="true" {% if settings.enable_telegram_notifications == 'true' %}checked{% endif %}>
+                    <label class="form-check-label" for="enable_telegram_notifications">Enable Telegram Notifications</label>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="telegram_bot_token" class="form-label">Telegram Bot Token</label>
+                    <input type="text" class="form-control" id="telegram_bot_token" name="telegram_bot_token" value="{{ settings.telegram_bot_token }}">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="telegram_chat_id" class="form-label">Telegram Chat ID</label>
+                    <input type="text" class="form-control" id="telegram_chat_id" name="telegram_chat_id" value="{{ settings.telegram_chat_id }}">
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>Scanning Settings</h4>
+            </div>
+            <div class="card-body">
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" id="scanning_enabled" name="scanning_enabled" value="true" {% if settings.scanning_enabled == 'true' %}checked{% endif %}>
+                    <label class="form-check-label" for="scanning_enabled">Enable Network Scanning</label>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="scanning_interval" class="form-label">Scanning Interval (seconds)</label>
+                    <input type="number" class="form-control" id="scanning_interval" name="scanning_interval" value="{{ settings.scanning_interval }}">
+                </div>
+            </div>
+        </div>
+
+        <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary">Save Configuration</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
