@@ -18,6 +18,9 @@ mac-vendor-lookup==0.1.12  # MAC address vendor lookup
 
 # Web Interface
 Flask==2.3.3          # Web framework
+
+# Notifications
+python-telegram-bot==20.5   # Telegram bot API
 Flask-SQLAlchemy==3.1.1 # SQL Alchemy integration for Flask
 Werkzeug==2.3.7       # WSGI web application library
 Jinja2==3.1.2         # Template engine for Flask

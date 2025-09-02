@@ -12,3 +12,13 @@ class Config:
         'host': os.getenv('DB_HOST'),
         'port': os.getenv('DB_PORT')
     }
+
+    @staticmethod
+    def get(key: str, default=None):
+        """Get a configuration value by key."""
+        return os.getenv(key, default)
+
+    # Telegram configuration
+    TELEGRAM_ENABLED = os.getenv('TELEGRAM_ENABLED', 'false').lower() == 'true'
+    TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+    TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')

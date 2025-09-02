@@ -1,7 +1,10 @@
+import asyncio
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from models.database import Database
+from ..utils.telegram_notifier import TelegramNotifier
 
 review = Blueprint('review', __name__)
+notifier = TelegramNotifier()
 
 @review.route('/review', methods=['GET', 'POST'])
 def review_page():
@@ -27,6 +30,13 @@ def review_page():
 
 def handle_approve_action(selected_devices):
     for mac in selected_devices:
+        # Get device info before removing from new_devices
+        device_info = Database.execute_query_single("""
+            SELECT device_name, mac_address, last_ip
+            FROM new_devices
+            WHERE mac_address = %s
+        """, (mac,))
+        
         queries = [
             ("""
                 WITH input_mac AS (
@@ -44,6 +54,15 @@ def handle_approve_action(selected_devices):
             ("DELETE FROM new_devices WHERE mac_address = %s", (mac,))
         ]
         Database.execute_transaction(queries)
+        
+        # Send notification
+        if device_info:
+            asyncio.run(notifier.notify_new_device(
+                device_info[0],  # device_name
+                device_info[1],  # mac_address
+                device_info[2]   # last_ip
+            ))
+            
     flash(f'Added {len(selected_devices)} devices to known devices', 'success')
 
 def handle_block_action(selected_devices):
@@ -51,6 +70,13 @@ def handle_block_action(selected_devices):
     notes = request.form.get('notes', '')
     
     for mac in selected_devices:
+        # Get device info before moving to unknown_devices
+        device_info = Database.execute_query_single("""
+            SELECT mac_address, last_ip
+            FROM new_devices
+            WHERE mac_address = %s
+        """, (mac,))
+        
         queries = [
             ("""
                 WITH device AS (
@@ -65,5 +91,15 @@ def handle_block_action(selected_devices):
             """, (mac, threat_level, notes)),
             ("DELETE FROM new_devices WHERE mac_address = %s", (mac,))
         ]
+        
+        Database.execute_transaction(queries)
+        
+        # Send notification
+        if device_info:
+            asyncio.run(notifier.notify_unknown_device(
+                device_info[0],  # mac_address
+                device_info[1],  # last_ip
+                threat_level
+            ))
         Database.execute_transaction(queries)
     flash(f'Marked {len(selected_devices)} devices as threats', 'warning')
