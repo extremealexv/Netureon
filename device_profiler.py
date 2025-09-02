@@ -1,11 +1,17 @@
 import socket
 import requests
 import subprocess
+from datetime import datetime
+from webui.models.config import Configuration
+from webui.utils.telegram_notifier import TelegramNotifier
+from webui.utils.email_notifier import EmailNotifier
 
 class DeviceProfiler:
     def __init__(self, mac_address, ip_address=None):
         self.mac_address = mac_address
         self.ip_address = ip_address
+        self.telegram_notifier = TelegramNotifier()
+        self.email_notifier = EmailNotifier()
 
     def get_mac_vendor(self):
         url = f"https://api.macvendors.com/{self.mac_address}"
@@ -38,8 +44,23 @@ class DeviceProfiler:
                     open_ports.append(port)
         return open_ports
 
-    def profile(self):
+    async def profile(self):
         vendor = self.get_mac_vendor()
         hostname = self.get_hostname()
         open_ports = self.scan_open_ports()
+        
+        # Prepare device info for notifications
+        device_info = {
+            'mac_address': self.mac_address,
+            'ip_address': self.ip_address,
+            'hostname': hostname,
+            'vendor': vendor,
+            'first_seen': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+            'open_ports': open_ports
+        }
+        
+        # Send notifications if enabled
+        await self.telegram_notifier.notify_new_device_detected(device_info)
+        await self.email_notifier.notify_new_device_detected(device_info)
+        
         return (self.mac_address, self.ip_address, vendor, hostname, open_ports)
