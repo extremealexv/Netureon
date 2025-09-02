@@ -7,6 +7,10 @@ def create_app():
     app = Flask(__name__)
     app.secret_key = Config.SECRET_KEY
     
+    # Initialize database
+    from .models.database import init_db
+    init_db(app)
+    
     # Import and register blueprints
     from .routes.main import main
     from .routes.review import review

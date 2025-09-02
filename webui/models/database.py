@@ -1,23 +1,26 @@
-"""Database connection and query management."""
+"""Database connection and ORM setup."""
 
 import os
-import psycopg2
+from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Database connection parameters
-DB_CONFIG = {
-    'dbname': os.getenv('DB_NAME'),
-    'user': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASSWORD'),
-    'host': os.getenv('DB_HOST'),
-    'port': os.getenv('DB_PORT')
-}
+# Create the SQLAlchemy instance
+db = SQLAlchemy()
 
-def get_db_connection():
-    """Create a database connection."""
+def init_db(app):
+    """Initialize the database with the Flask app."""
+    # Configure SQLAlchemy
+    app.config['SQLALCHEMY_DATABASE_URI'] = (
+        f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@"
+        f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+    )
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    # Initialize SQLAlchemy with the app
+    db.init_app(app)
     return psycopg2.connect(**DB_CONFIG)
 
 class Database:
