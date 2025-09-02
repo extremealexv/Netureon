@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from models.database import Database
-from utils.device_utils import DeviceManager
+from webui.models.database import Database
+from webui.utils.device_utils import DeviceManager
 
 unknown = Blueprint('unknown', __name__)
 
