@@ -51,6 +51,11 @@
                     <label for="smtp_from_address" class="form-label">From Email Address</label>
                     <input type="email" class="form-control" id="smtp_from_address" name="smtp_from_address" value="{{ settings.smtp_from_address }}">
                 </div>
+
+                <div class="mb-3">
+                    <label for="smtp_to_address" class="form-label">Recipient Email Address</label>
+                    <input type="email" class="form-control" id="smtp_to_address" name="smtp_to_address" value="{{ settings.smtp_to_address }}">
+                </div>
             </div>
         </div>
 

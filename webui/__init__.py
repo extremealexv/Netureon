@@ -1,15 +1,39 @@
 """WebUI package initialization."""
 
+import os
+from dotenv import load_dotenv
 from flask import Flask
 from .config.config import Config
+
+# Load environment variables
+load_dotenv()
 
 def create_app():
     app = Flask(__name__)
     app.secret_key = Config.SECRET_KEY
     
     # Initialize database
-    from .models.database import db, init_db
-    init_db(app)
+    from .models.database import db
+    
+    # Configure SQLAlchemy
+    app.config['SQLALCHEMY_DATABASE_URI'] = (
+        f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@"
+        f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+    )
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    # Initialize SQLAlchemy
+    db.init_app(app)
+    
+    # Push the application context
+    app.app_context().push()
+    
+    # Import all models to ensure they're registered with SQLAlchemy
+    from .models.config import Configuration
+    
+    # Create/update all tables
+    with app.app_context():
+        db.create_all()
     
     # Import and register blueprints
     from .routes.main import main
