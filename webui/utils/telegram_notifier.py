@@ -100,20 +100,63 @@ class TelegramNotifier:
             except Exception:
                 pass
 
-    async def notify_new_device(self, device_name: str, mac: str, ip: str) -> None:
+    async def notify_new_device_detected(self, device_info: dict) -> None:
         """
-        Send notification about new device detection.
+        Send notification about newly detected device during network scan.
         
         Args:
-            device_name: Name of the device if available
-            mac: MAC address of the device
-            ip: IP address of the device
+            device_info: Dictionary containing device information
         """
         message = (
-            f"🆕 <b>New Device Detected</b>\n\n"
-            f"Name: {device_name or 'Unknown'}\n"
-            f"MAC: <code>{mac}</code>\n"
-            f"IP: <code>{ip}</code>"
+            f"🔍 <b>New Device Detected on Network</b>\n\n"
+            f"Name: {device_info.get('hostname') or 'Unknown'}\n"
+            f"MAC: <code>{device_info.get('mac')}</code>\n"
+            f"IP: <code>{device_info.get('ip')}</code>\n"
+            f"Vendor: {device_info.get('vendor') or 'Unknown'}\n"
+            f"First Seen: {device_info.get('first_seen')}\n"
+            f"Open Ports: {device_info.get('open_ports', 'No ports scanned')}"
+        )
+        await self.send_message(message)
+
+    async def notify_device_approved(self, device_info: dict) -> None:
+        """
+        Send notification when a device is approved and added to known devices.
+        
+        Args:
+            device_info: Dictionary containing device information
+        """
+        message = (
+            f"✅ <b>Device Added to Known Devices</b>\n\n"
+            f"Name: {device_info.get('device_name') or 'Unknown'}\n"
+            f"MAC: <code>{device_info.get('mac_address')}</code>\n"
+            f"IP: <code>{device_info.get('last_ip')}</code>\n"
+            f"Type: {device_info.get('device_type') or 'Unknown'}\n"
+            f"Added: {device_info.get('last_seen')}\n"
+            f"Notes: {device_info.get('notes') or 'No notes'}"
+        )
+        await self.send_message(message)
+
+    async def notify_device_blocked(self, device_info: dict) -> None:
+        """
+        Send notification when a device is marked as unknown/threat.
+        
+        Args:
+            device_info: Dictionary containing device information
+        """
+        threat_emoji = {
+            'low': '⚠️',
+            'medium': '🚨',
+            'high': '🔥'
+        }.get(device_info.get('threat_level', '').lower(), '⚠️')
+        
+        message = (
+            f"{threat_emoji} <b>Device Marked as Security Threat</b>\n\n"
+            f"MAC: <code>{device_info.get('mac_address')}</code>\n"
+            f"IP: <code>{device_info.get('last_ip')}</code>\n"
+            f"Threat Level: {device_info.get('threat_level', 'medium').upper()}\n"
+            f"First Seen: {device_info.get('first_seen')}\n"
+            f"Last Seen: {device_info.get('last_seen')}\n"
+            f"Notes: {device_info.get('notes') or 'No notes provided'}"
         )
         await self.send_message(message)
 

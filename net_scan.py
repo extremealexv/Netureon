@@ -6,6 +6,7 @@ ARP scanning and device profiling capabilities.
 
 import psycopg2
 import netifaces
+import asyncio
 from scapy.all import ARP, Ether, srp
 from datetime import datetime
 import ipaddress
@@ -185,13 +186,20 @@ def update_database(devices):
             """, (mac, timestamp, timestamp, ip, hostname, vendor, notes))
             
             # Send Telegram notification for new device
-            message = (
-                f"🆕 <b>New Device Detected</b>\n\n"
-                f"Name: {hostname or 'Unknown'}\n"
-                f"MAC: <code>{mac}</code>\n"
-                f"IP: <code>{ip}</code>"
-            )
-            notifier.notify(message)
+            device_info = {
+                'hostname': hostname,
+                'mac': mac,
+                'ip': ip,
+                'vendor': vendor,
+                'first_seen': timestamp,
+                'open_ports': ', '.join(map(str, open_ports)) if open_ports else 'None'
+            }
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(notifier.notify_new_device_detected(device_info))
+            finally:
+                loop.close()
 
     conn.commit()
     cur.close()

@@ -30,12 +30,30 @@ def review_page():
 
 def handle_approve_action(selected_devices):
     for mac in selected_devices:
-        # Get device info before removing from new_devices
+        # Get complete device info before removing from new_devices
         device_info = Database.execute_query_single("""
-            SELECT device_name, mac_address, last_ip
+            SELECT device_name, mac_address, device_type, last_seen, last_ip, notes, first_seen
             FROM new_devices
             WHERE mac_address = %s
         """, (mac,))
+        
+        if device_info:
+            device_data = {
+                'device_name': device_info[0],
+                'mac_address': device_info[1],
+                'device_type': device_info[2],
+                'last_seen': device_info[3],
+                'last_ip': device_info[4],
+                'notes': device_info[5]
+            }
+            
+            # Send notification before database changes
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(notifier.notify_device_approved(device_data))
+            finally:
+                loop.close()
         
         queries = [
             ("""
