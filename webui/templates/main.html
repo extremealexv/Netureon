@@ -162,12 +162,19 @@
     </style>
 </head>
 <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('main.main_page') }}">🔐 NetGuard</a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="{{ url_for('main.main_page') }}">Known Devices</a>
+                <a class="nav-link" href="{{ url_for('review.review_page') }}">Review</a>
+                <a class="nav-link" href="{{ url_for('unknown.unknown_devices') }}">Unknown</a>
+                <a class="nav-link" href="{{ url_for('system.index') }}">System</a>
+                <a class="nav-link" href="{{ url_for('config.config') }}">Configuration</a>
+            </div>
+        </div>
+    </nav>
     <div class="container">
-        <h1>🔐 Known Devices</h1>
-        
-        <nav>
-            <a href="{{ url_for('main.main_page') }}">Known Devices</a>
-            <a href="{{ url_for('review.review_page') }}">
                 Review New {% if new_device_count %}<span class="badge">{{ new_device_count }}</span>{% endif %}
             </a>
             <a href="{{ url_for('unknown.unknown_devices') }}">
