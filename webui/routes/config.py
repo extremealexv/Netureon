@@ -11,6 +11,7 @@ DEFAULT_SETTINGS = {
     'smtp_username': '',
     'smtp_password': '',
     'smtp_from_address': '',
+    'smtp_to_address': '',
     'telegram_bot_token': '',
     'telegram_chat_id': '',
     'enable_email_notifications': 'false',
