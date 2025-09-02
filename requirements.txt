@@ -19,6 +19,7 @@ mac-vendor-lookup==0.1.12  # MAC address vendor lookup
 # Web Interface
 Flask==2.3.3          # Web framework
 Flask-SQLAlchemy==3.1.1  # SQL ORM for Flask
+SQLAlchemy==2.0.20    # SQL Toolkit and ORM
 
 # Notifications
 python-telegram-bot==20.5   # Telegram bot API
