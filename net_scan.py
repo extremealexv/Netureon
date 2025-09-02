@@ -217,14 +217,21 @@ if __name__ == "__main__":
         # Initialize Flask application
         app = create_app()
         
-        # Get network info and scan
-        subnet = get_local_subnet()
-        print(f"🔍 Scanning network: {subnet}")
-        devices = scan_network(subnet)
-        print(f"✅ Found {len(devices)} devices.")
-        
-        # Update database and send notifications within application context
         with app.app_context():
+            # Check if scanning is enabled
+            from webui.models.config import Configuration
+            scanning_enabled = Configuration.get_setting('scanning_enabled', 'true')
+            if scanning_enabled.lower() != 'true':
+                print("ℹ️ Network scanning is disabled in configuration")
+                exit(0)
+                
+            # Get network info and scan
+            subnet = get_local_subnet()
+            print(f"🔍 Scanning network: {subnet}")
+            devices = scan_network(subnet)
+            print(f"✅ Found {len(devices)} devices.")
+            
+            # Update database and send notifications
             update_database(devices)
             print("📦 Database updated.")
     except Exception as e:
