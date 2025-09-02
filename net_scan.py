@@ -16,7 +16,6 @@ from dotenv import load_dotenv
 from device_profiler import DeviceProfiler
 from version import __version__
 from webui.app import create_app
-from webui.utils.telegram_notifier import TelegramNotifier
 
 # Configure logging
 logging.basicConfig(
@@ -37,9 +36,6 @@ DB_CONFIG = {
     'host': os.getenv('DB_HOST'),
     'port': os.getenv('DB_PORT')
 }
-
-# Initialize Telegram notifier
-notifier = TelegramNotifier()
 
 def get_local_subnet():
     """
@@ -186,19 +182,29 @@ def update_database(devices):
                 ) VALUES (%s::macaddr, %s, %s, %s::inet, FALSE, %s, %s, %s)
             """, (mac, timestamp, timestamp, ip, hostname, vendor, notes))
             
-            # Send Telegram notification for new device
+            # Send notifications for new device
             device_info = {
                 'hostname': hostname,
-                'mac': mac,
-                'ip': ip,
+                'mac_address': mac,
+                'ip_address': ip,
                 'vendor': vendor,
                 'first_seen': timestamp,
-                'open_ports': ', '.join(map(str, open_ports)) if open_ports else 'None'
+                'open_ports': open_ports
             }
+            
+            from webui.utils.email_notifier import EmailNotifier
+            from webui.utils.telegram_notifier import TelegramNotifier
+            
+            # Initialize notifiers
+            email_notifier = EmailNotifier()
+            telegram_notifier = TelegramNotifier()
+            
+            # Send notifications
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                loop.run_until_complete(notifier.notify_new_device_detected(device_info))
+                loop.run_until_complete(email_notifier.notify_new_device_detected(device_info))
+                loop.run_until_complete(telegram_notifier.notify_new_device_detected(device_info))
             finally:
                 loop.close()
 
@@ -217,7 +223,7 @@ if __name__ == "__main__":
         devices = scan_network(subnet)
         print(f"✅ Found {len(devices)} devices.")
         
-        # Update database within application context
+        # Update database and send notifications within application context
         with app.app_context():
             update_database(devices)
             print("📦 Database updated.")
