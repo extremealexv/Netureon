@@ -124,16 +124,16 @@ class Database:
                 
     # Static method shortcuts for convenience
     @staticmethod
-    def query(*args, **kwargs):
+    def execute_query(query, params=None, fetch=True):
         """Static shortcut for execute_query"""
-        return Database().execute_query(*args, **kwargs)
+        return Database().execute_query(query, params, fetch)
         
     @staticmethod
-    def query_single(*args, **kwargs):
+    def execute_query_single(query, params=None):
         """Static shortcut for execute_query_single"""
-        return Database().execute_query_single(*args, **kwargs)
+        return Database().execute_query_single(query, params)
         
     @staticmethod
-    def transaction(*args, **kwargs):
+    def execute_transaction(queries):
         """Static shortcut for execute_transaction"""
-        return Database().execute_transaction(*args, **kwargs)
+        return Database().execute_transaction(queries)
