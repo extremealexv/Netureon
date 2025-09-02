@@ -29,17 +29,19 @@ class TelegramNotifier:
         if self._init_done:
             return
             
-        from webui.models.config import Configuration
-        self.bot_token = Config.get('TELEGRAM_BOT_TOKEN')
-        self.chat_id = Config.get('TELEGRAM_CHAT_ID')
-        self._init_done = True
-            
         try:
+            from webui.models.config import Configuration
+            self.bot_token = Configuration.get_setting('telegram_bot_token')
+            self.chat_id = Configuration.get_setting('telegram_chat_id')
+            
             # Verify the chat_id format
-            self.chat_id = str(self.chat_id)
-            if not self.chat_id.startswith('-') and not self.chat_id.isdigit():
-                logger.error(f"Invalid TELEGRAM_CHAT_ID format: {self.chat_id}")
-                return
+            if self.chat_id:
+                self.chat_id = str(self.chat_id)
+                if not self.chat_id.startswith('-') and not self.chat_id.isdigit():
+                    logger.error(f"Invalid telegram_chat_id format: {self.chat_id}")
+                    self.chat_id = None
+            
+            self._init_done = True
         except Exception as e:
             logger.error(f"Failed to initialize Telegram notifier: {str(e)}")
 
@@ -96,20 +98,24 @@ class TelegramNotifier:
             message: The message to send
         """
         try:
-            self._init_if_needed()
-            
             from webui.models.config import Configuration
+            
+            # First check if notifications are enabled
             if Configuration.get_setting('enable_telegram_notifications') != 'true':
                 logger.debug("Telegram notifications are disabled")
                 return
+            
+            # Then initialize if needed
+            self._init_if_needed()
                 
             if not self.bot_token:
-                logger.warning("TELEGRAM_BOT_TOKEN not configured")
+                logger.warning("telegram_bot_token not configured")
                 return
                 
             if not self.chat_id:
-                logger.warning("TELEGRAM_CHAT_ID not configured")
+                logger.warning("telegram_chat_id not configured")
                 return
+                
         except Exception as e:
             logger.error(f"Failed to check notification settings: {e}")
             return

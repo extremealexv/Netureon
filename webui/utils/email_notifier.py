@@ -34,13 +34,19 @@ class EmailNotifier:
     def notify(self, subject: str, message: str) -> None:
         """Send an email notification."""
         try:
-            self._init_if_needed()
+            from webui.models.config import Configuration
             
+            # First check if notifications are enabled
             if Configuration.get_setting('enable_email_notifications') != 'true':
+                print("Email notifications are disabled")
                 return
+            
+            # Then initialize if needed
+            self._init_if_needed()
 
             if not all([self.smtp_server, self.smtp_username, self.smtp_password,
                        self.from_address, self.to_address]):
+                print("Email settings are incomplete")
                 return
         except Exception as e:
             print(f"Failed to check notification settings: {e}")
