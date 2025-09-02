@@ -1,6 +1,6 @@
 """Configuration model for NetGuard."""
 from datetime import datetime
-from . import database as db
+from .database import db
 
 class Configuration(db.Model):
     """Configuration model for storing application settings."""

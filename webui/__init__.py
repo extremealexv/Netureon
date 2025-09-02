@@ -7,9 +7,15 @@ def create_app():
     app = Flask(__name__)
     app.secret_key = Config.SECRET_KEY
     
-    # Initialize database
-    from .models.database import init_db
+    # Initialize database first
+    from .models.database import db, init_db
     init_db(app)
+
+    with app.app_context():
+        # Import models to ensure they're registered with SQLAlchemy
+        from .models.config import Configuration
+        # Create all database tables
+        db.create_all()
     
     # Import and register blueprints
     from .routes.main import main
