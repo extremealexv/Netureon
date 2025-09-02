@@ -185,12 +185,13 @@ def update_database(devices):
             """, (mac, timestamp, timestamp, ip, hostname, vendor, notes))
             
             # Send Telegram notification for new device
-            import asyncio
-            asyncio.run(notifier.notify_new_device(
-                device_name=hostname,
-                mac=mac,
-                ip=ip
-            ))
+            message = (
+                f"🆕 <b>New Device Detected</b>\n\n"
+                f"Name: {hostname or 'Unknown'}\n"
+                f"MAC: <code>{mac}</code>\n"
+                f"IP: <code>{ip}</code>"
+            )
+            notifier.notify(message)
 
     conn.commit()
     cur.close()

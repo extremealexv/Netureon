@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import sys
 from telegram import Bot
 from telegram.error import TelegramError
 from ..config.config import Config
@@ -16,8 +17,26 @@ class TelegramNotifier:
         self.bot_token = Config.get('TELEGRAM_BOT_TOKEN')
         self.chat_id = Config.get('TELEGRAM_CHAT_ID')
         self.bot = None
-        if self.bot_token and self.chat_id:
+        self._loop = None
+        
+        if not self.bot_token:
+            logger.warning("TELEGRAM_BOT_TOKEN not configured")
+            return
+            
+        if not self.chat_id:
+            logger.warning("TELEGRAM_CHAT_ID not configured")
+            return
+            
+        try:
             self.bot = Bot(token=self.bot_token)
+            # Verify the chat_id format
+            self.chat_id = str(self.chat_id)
+            if not self.chat_id.startswith('-') and not self.chat_id.isdigit():
+                logger.error(f"Invalid TELEGRAM_CHAT_ID format: {self.chat_id}")
+                self.bot = None
+        except Exception as e:
+            logger.error(f"Failed to initialize Telegram bot: {str(e)}")
+            self.bot = None
 
     async def send_message(self, message: str) -> bool:
         """
@@ -44,6 +63,19 @@ class TelegramNotifier:
             logger.error(f"Failed to send Telegram message: {str(e)}")
             return False
 
+    def _ensure_event_loop(self):
+        """Ensure there's a running event loop or create a new one."""
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            return loop
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop
+
     def notify(self, message: str) -> None:
         """
         Synchronous wrapper for sending messages.
@@ -51,7 +83,22 @@ class TelegramNotifier:
         Args:
             message: The message to send
         """
-        asyncio.run(self.send_message(message))
+        if not self.bot:
+            logger.warning("Telegram bot not configured, skipping notification")
+            return
+            
+        loop = self._ensure_event_loop()
+        try:
+            loop.run_until_complete(self.send_message(message))
+        except Exception as e:
+            logger.error(f"Failed to send Telegram message: {str(e)}")
+        finally:
+            try:
+                # Clean up any remaining tasks
+                pending = asyncio.all_tasks(loop)
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            except Exception:
+                pass
 
     async def notify_new_device(self, device_name: str, mac: str, ip: str) -> None:
         """
