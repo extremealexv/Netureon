@@ -10,24 +10,40 @@ class EmailNotifier:
 
     def __init__(self):
         """Initialize email notifier with configuration."""
-        self.enabled = Configuration.get_setting('enable_email_notifications') == 'true'
+        self._init_done = False
+        self.smtp_server = None
+        self.smtp_port = 587
+        self.smtp_username = None
+        self.smtp_password = None
+        self.from_address = None
+        self.to_address = None
+        
+    def _init_if_needed(self):
+        """Initialize settings if not already done."""
+        if self._init_done:
+            return
+            
         self.smtp_server = Configuration.get_setting('smtp_server')
         self.smtp_port = int(Configuration.get_setting('smtp_port', '587'))
         self.smtp_username = Configuration.get_setting('smtp_username')
         self.smtp_password = Configuration.get_setting('smtp_password')
         self.from_address = Configuration.get_setting('smtp_from_address')
         self.to_address = Configuration.get_setting('smtp_to_address')
+        self._init_done = True
 
     def notify(self, subject: str, message: str) -> None:
         """Send an email notification."""
-        # Refresh enabled state in case it was changed
-        self.enabled = Configuration.get_setting('enable_email_notifications') == 'true'
-        
-        if not self.enabled:
-            return
+        try:
+            self._init_if_needed()
+            
+            if Configuration.get_setting('enable_email_notifications') != 'true':
+                return
 
-        if not all([self.smtp_server, self.smtp_username, self.smtp_password,
-                   self.from_address, self.to_address]):
+            if not all([self.smtp_server, self.smtp_username, self.smtp_password,
+                       self.from_address, self.to_address]):
+                return
+        except Exception as e:
+            print(f"Failed to check notification settings: {e}")
             return
 
         msg = MIMEMultipart()

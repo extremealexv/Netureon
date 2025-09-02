@@ -18,24 +18,21 @@ class TelegramNotifier:
     
     def __init__(self):
         """Initialize the Telegram notifier."""
-        from webui.models.config import Configuration
-        self.enabled = Configuration.get_setting('enable_telegram_notifications') == 'true'
-        self.bot_token = Config.get('TELEGRAM_BOT_TOKEN')
-        self.chat_id = Config.get('TELEGRAM_CHAT_ID')
         self._bot = None
         self._loop = None
-        
-        if not self.enabled:
-            logger.info("Telegram notifications are disabled")
+        self.bot_token = None
+        self.chat_id = None
+        self._init_done = False
+
+    def _init_if_needed(self):
+        """Initialize settings if not already done."""
+        if self._init_done:
             return
             
-        if not self.bot_token:
-            logger.warning("TELEGRAM_BOT_TOKEN not configured")
-            return
-            
-        if not self.chat_id:
-            logger.warning("TELEGRAM_CHAT_ID not configured")
-            return
+        from webui.models.config import Configuration
+        self.bot_token = Config.get('TELEGRAM_BOT_TOKEN')
+        self.chat_id = Config.get('TELEGRAM_CHAT_ID')
+        self._init_done = True
             
         try:
             # Verify the chat_id format
@@ -98,12 +95,23 @@ class TelegramNotifier:
         Args:
             message: The message to send
         """
-        # Refresh enabled state in case it was changed
-        from webui.models.config import Configuration
-        self.enabled = Configuration.get_setting('enable_telegram_notifications') == 'true'
-        
-        if not self.enabled:
-            logger.debug("Telegram notifications are disabled")
+        try:
+            self._init_if_needed()
+            
+            from webui.models.config import Configuration
+            if Configuration.get_setting('enable_telegram_notifications') != 'true':
+                logger.debug("Telegram notifications are disabled")
+                return
+                
+            if not self.bot_token:
+                logger.warning("TELEGRAM_BOT_TOKEN not configured")
+                return
+                
+            if not self.chat_id:
+                logger.warning("TELEGRAM_CHAT_ID not configured")
+                return
+        except Exception as e:
+            logger.error(f"Failed to check notification settings: {e}")
             return
         try:
             asyncio.run(self.send_message(message))
