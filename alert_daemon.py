@@ -58,40 +58,50 @@ DB_CONFIG = {
     'port': os.getenv('DB_PORT')
 }
 
-# Email config
-EMAIL_FROM = os.getenv('EMAIL_FROM')
-EMAIL_TO = os.getenv('EMAIL_TO')
-EMAIL_SUBJECT = os.getenv('EMAIL_SUBJECT', 'Intrusion Alert')
-SMTP_SERVER = os.getenv('SMTP_SERVER')
-SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
-SMTP_USER = os.getenv('SMTP_USER')
-SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
+# Initialize Flask app to access configuration
+from webui.app import create_app
+app = create_app()
 
-# Telegram config
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+def get_notification_settings():
+    """Get notification settings from the database."""
+    from webui.models.config import Configuration
+    with app.app_context():
+        settings = {
+            'enable_email_notifications': Configuration.get_setting('enable_email_notifications'),
+            'enable_telegram_notifications': Configuration.get_setting('enable_telegram_notifications'),
+            'smtp_server': Configuration.get_setting('smtp_server'),
+            'smtp_port': Configuration.get_setting('smtp_port', '587'),
+            'smtp_username': Configuration.get_setting('smtp_username'),
+            'smtp_password': Configuration.get_setting('smtp_password'),
+            'smtp_from_address': Configuration.get_setting('smtp_from_address'),
+            'smtp_to_address': Configuration.get_setting('smtp_to_address'),
+            'telegram_bot_token': Configuration.get_setting('telegram_bot_token'),
+            'telegram_chat_id': Configuration.get_setting('telegram_chat_id')
+        }
+    return settings
 
 def send_email(body):
-    missing = []
-    for var, name in [
-        (SMTP_SERVER, 'SMTP_SERVER'),
-        (SMTP_PORT, 'SMTP_PORT'),
-        (SMTP_USER, 'SMTP_USER'),
-        (SMTP_PASSWORD, 'SMTP_PASSWORD'),
-        (EMAIL_FROM, 'EMAIL_FROM'),
-        (EMAIL_TO, 'EMAIL_TO')
-    ]:
-        if not var:
-            missing.append(name)
+    settings = get_notification_settings()
     
+    # First check if email notifications are enabled
+    if settings['enable_email_notifications'] != 'true':
+        print("Email notifications are disabled in NetGuard settings")
+        return False
+    
+    # Check if all required settings are present
+    required_settings = [
+        'smtp_server', 'smtp_port', 'smtp_username', 'smtp_password',
+        'smtp_from_address', 'smtp_to_address'
+    ]
+    
+    missing = [s for s in required_settings if not settings.get(s)]
     if missing:
         print(f"Email configuration incomplete. Missing: {', '.join(missing)}")
-        print("Run setup_email.sh to configure email settings")
         return False
         
     try:
-        print(f"Attempting to send email notification to {EMAIL_TO}")
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        print(f"Attempting to send email notification to {settings['smtp_to_address']}")
+        server = smtplib.SMTP(settings['smtp_server'], int(settings['smtp_port']))
         server.set_debuglevel(1)  # Enable debug output
         
         # Start TLS for security
@@ -100,15 +110,15 @@ def send_email(body):
         
         # Authentication
         print("Authenticating...")
-        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.login(settings['smtp_username'], settings['smtp_password'])
         
         # Prepare message
-        message = f"Subject: {EMAIL_SUBJECT}\n\n{body}"
+        message = f"Subject: NetGuard Alert\n\n{body}"
         message = message.encode('utf-8')  # Encode message as UTF-8
         
         # Send email
         print("Sending email...")
-        server.sendmail(EMAIL_FROM, EMAIL_TO, message)
+        server.sendmail(settings['smtp_from_address'], settings['smtp_to_address'], message)
         print("Email sent successfully")
         
         # Close the connection
@@ -125,13 +135,28 @@ def send_email(body):
         print(f"Email error: {type(e).__name__}: {e}")
         return False
 
-# def send_telegram(message):
-#     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-#     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
-#     try:
-#         requests.post(url, data=payload)
-#     except Exception as e:
-#         print(f"Telegram error: {e}")
+def send_telegram(message):
+    settings = get_notification_settings()
+    
+    # First check if telegram notifications are enabled
+    if settings['enable_telegram_notifications'] != 'true':
+        print("Telegram notifications are disabled in NetGuard settings")
+        return False
+        
+    # Check if telegram is configured
+    if not settings.get('telegram_bot_token') or not settings.get('telegram_chat_id'):
+        print("Telegram configuration incomplete")
+        return False
+        
+    try:
+        url = f"https://api.telegram.org/bot{settings['telegram_bot_token']}/sendMessage"
+        payload = {"chat_id": settings['telegram_chat_id'], "text": message}
+        response = requests.post(url, data=payload)
+        response.raise_for_status()
+        return True
+    except Exception as e:
+        print(f"Telegram error: {e}")
+        return False
 
 def format_device_info(mac, ip, hostname, vendor, ports):
     """Format device information for alerts."""
