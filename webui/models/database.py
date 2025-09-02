@@ -1,7 +1,7 @@
 """Database connection and ORM setup."""
 
 import os
-from flask import Flask
+from flask import Flask, current_app
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
 from dotenv import load_dotenv
@@ -29,19 +29,31 @@ def init_db(app):
         db.create_all()
 
 class Database:
-    _flask_app = None
+    """Database access class with SQLAlchemy integration."""
+    
+    def __init__(self):
+        """Initialize Database instance."""
+        self._flask_app = None
 
-    @classmethod
-    def _get_app(cls):
-        """Get or create Flask app instance."""
-        if cls._flask_app is None:
-            # Import here to avoid circular imports
-            from webui.app import app
-            cls._flask_app = app
-        return cls._flask_app
+    def _ensure_app_context(self):
+        """Ensure we have a valid Flask application context."""
+        try:
+            # Try to get the current app context
+            current_app._get_current_object()
+        except RuntimeError:
+            # If no app context exists, create a temporary one
+            if not self._flask_app:
+                self._flask_app = Flask('netguard_temp')
+                self._flask_app.config['SQLALCHEMY_DATABASE_URI'] = (
+                    f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@"
+                    f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+                )
+                self._flask_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+                db.init_app(self._flask_app)
+            return self._flask_app.app_context()
+        return None
 
-    @classmethod
-    def execute_query(cls, query, params=None, fetch=True):
+    def execute_query(self, query, params=None, fetch=True):
         """Execute a query and optionally fetch results using SQLAlchemy
         
         Args:
@@ -52,8 +64,11 @@ class Database:
         Returns:
             list: Query results if fetch=True, otherwise None
         """
-        app = cls._get_app()
-        with app.app_context():
+        ctx = self._ensure_app_context()
+        if ctx:
+            ctx.push()
+            
+        try:
             if params is None:
                 params = {}
             result = db.session.execute(text(query), params)
@@ -61,9 +76,11 @@ class Database:
                 return result.fetchall()
             db.session.commit()
             return result.rowcount if result.rowcount > -1 else None
+        finally:
+            if ctx:
+                ctx.pop()
 
-    @classmethod
-    def execute_query_single(cls, query, params=None):
+    def execute_query_single(self, query, params=None):
         """Execute a query and fetch a single row using SQLAlchemy
         
         Args:
@@ -73,24 +90,50 @@ class Database:
         Returns:
             tuple: A single row result or None if no results
         """
-        app = cls._get_app()
-        with app.app_context():
+        ctx = self._ensure_app_context()
+        if ctx:
+            ctx.push()
+            
+        try:
             if params is None:
                 params = {}
             result = db.session.execute(text(query), params)
             return result.fetchone()
+        finally:
+            if ctx:
+                ctx.pop()
 
-    @classmethod
-    def execute_transaction(cls, queries):
+    def execute_transaction(self, queries):
         """Execute multiple queries in a transaction using SQLAlchemy"""
-        app = cls._get_app()
-        with app.app_context():
-            try:
-                for query, params in queries:
-                    if params is None:
-                        params = {}
-                    db.session.execute(text(query), params)
-                db.session.commit()
-            except Exception as e:
-                db.session.rollback()
-                raise e
+        ctx = self._ensure_app_context()
+        if ctx:
+            ctx.push()
+            
+        try:
+            for query, params in queries:
+                if params is None:
+                    params = {}
+                db.session.execute(text(query), params)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            raise e
+        finally:
+            if ctx:
+                ctx.pop()
+                
+    # Static method shortcuts for convenience
+    @staticmethod
+    def query(*args, **kwargs):
+        """Static shortcut for execute_query"""
+        return Database().execute_query(*args, **kwargs)
+        
+    @staticmethod
+    def query_single(*args, **kwargs):
+        """Static shortcut for execute_query_single"""
+        return Database().execute_query_single(*args, **kwargs)
+        
+    @staticmethod
+    def transaction(*args, **kwargs):
+        """Static shortcut for execute_transaction"""
+        return Database().execute_transaction(*args, **kwargs)
