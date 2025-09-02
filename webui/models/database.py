@@ -105,8 +105,6 @@ class Database:
     def execute_transaction(queries):
         """Execute multiple queries in a transaction"""
         return Database()._execute_transaction_impl(queries)
-            if ctx:
-                ctx.pop()
                 
     # Static method public interface
     @staticmethod
