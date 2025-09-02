@@ -2,7 +2,10 @@
 
 from flask import current_app
 from sqlalchemy import text
-from .. import db
+from flask_sqlalchemy import SQLAlchemy
+
+# Create the SQLAlchemy instance
+db = SQLAlchemy()
 
 class Database:
     """Database access class with SQLAlchemy integration."""

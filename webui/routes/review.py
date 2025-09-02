@@ -1,6 +1,6 @@
 import asyncio
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from models.database import Database
+from ..models.database import Database
 from ..utils.telegram_notifier import TelegramNotifier
 
 review = Blueprint('review', __name__)
