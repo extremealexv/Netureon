@@ -72,14 +72,6 @@ def handle_approve_action(selected_devices):
             ("DELETE FROM new_devices WHERE mac_address = %s", (mac,))
         ]
         Database.execute_transaction(queries)
-        
-        # Send notification
-        if device_info:
-            asyncio.run(notifier.notify_new_device(
-                device_info[0],  # device_name
-                device_info[1],  # mac_address
-                device_info[2]   # last_ip
-            ))
             
     flash(f'Added {len(selected_devices)} devices to known devices', 'success')
 
