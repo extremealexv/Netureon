@@ -20,7 +20,7 @@ def main_page():
         elif action == 'delete':
             handle_delete_action(selected_devices)
     
-    known_hosts = Database.query("""
+    known_hosts = Database.execute_query("""
         SELECT k.device_name, 
                k.mac_address::text, 
                k.device_type, 
