@@ -53,8 +53,8 @@ class Database:
             return self._flask_app.app_context()
         return None
 
-    def execute_query(self, query, params=None, fetch=True):
-        """Execute a query and optionally fetch results using SQLAlchemy
+    def _execute_query_impl(self, query, params=None, fetch=True):
+        """Internal implementation of execute_query
         
         Args:
             query (str): The SQL query to execute
@@ -80,8 +80,8 @@ class Database:
             if ctx:
                 ctx.pop()
 
-    def execute_query_single(self, query, params=None):
-        """Execute a query and fetch a single row using SQLAlchemy
+    def _execute_query_single_impl(self, query, params=None):
+        """Internal implementation of execute_query_single
         
         Args:
             query (str): The SQL query to execute
@@ -103,8 +103,8 @@ class Database:
             if ctx:
                 ctx.pop()
 
-    def execute_transaction(self, queries):
-        """Execute multiple queries in a transaction using SQLAlchemy"""
+    def _execute_transaction_impl(self, queries):
+        """Internal implementation of execute_transaction"""
         ctx = self._ensure_app_context()
         if ctx:
             ctx.push()
@@ -122,18 +122,35 @@ class Database:
             if ctx:
                 ctx.pop()
                 
-    # Static method shortcuts for convenience
+    # Static method public interface
     @staticmethod
     def execute_query(query, params=None, fetch=True):
-        """Static shortcut for execute_query"""
-        return Database().execute_query(query, params, fetch)
+        """Execute a query and optionally fetch results
+        
+        Args:
+            query (str): The SQL query to execute
+            params (dict, optional): Query parameters. Defaults to None.
+            fetch (bool, optional): Whether to fetch results. Defaults to True.
+        
+        Returns:
+            list: Query results if fetch=True, otherwise None
+        """
+        return Database()._execute_query_impl(query, params, fetch)
         
     @staticmethod
     def execute_query_single(query, params=None):
-        """Static shortcut for execute_query_single"""
-        return Database().execute_query_single(query, params)
+        """Execute a query and fetch a single row
+        
+        Args:
+            query (str): The SQL query to execute
+            params (dict, optional): Query parameters. Defaults to None.
+        
+        Returns:
+            tuple: A single row result or None if no results
+        """
+        return Database()._execute_query_single_impl(query, params)
         
     @staticmethod
     def execute_transaction(queries):
-        """Static shortcut for execute_transaction"""
-        return Database().execute_transaction(queries)
+        """Execute multiple queries in a transaction"""
+        return Database()._execute_transaction_impl(queries)
