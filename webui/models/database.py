@@ -36,12 +36,14 @@ class Database:
         Returns:
             list: Query results if fetch=True, otherwise None
         """
-        with db.engine.connect() as conn:
+        from flask import current_app
+        with current_app.app_context():
             if params is None:
                 params = {}
-            result = conn.execute(text(query), params)
+            result = db.session.execute(text(query), params)
             if fetch:
                 return result.fetchall()
+            db.session.commit()
             return result.rowcount if result.rowcount > -1 else None
 
     @staticmethod
@@ -55,20 +57,24 @@ class Database:
         Returns:
             tuple: A single row result or None if no results
         """
-        with db.engine.connect() as conn:
+        from flask import current_app
+        with current_app.app_context():
             if params is None:
                 params = {}
-            result = conn.execute(text(query), params)
+            result = db.session.execute(text(query), params)
             return result.fetchone()
 
     @staticmethod
     def execute_transaction(queries):
         """Execute multiple queries in a transaction using SQLAlchemy"""
-        with db.engine.begin() as conn:
+        from flask import current_app
+        with current_app.app_context():
             try:
                 for query, params in queries:
                     if params is None:
                         params = {}
-                    conn.execute(text(query), params)
+                    db.session.execute(text(query), params)
+                db.session.commit()
             except Exception as e:
+                db.session.rollback()
                 raise e
