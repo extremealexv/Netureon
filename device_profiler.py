@@ -46,24 +46,8 @@ class DeviceProfiler:
                     open_ports.append(port)
         return open_ports
 
-    async def profile(self):
+    def profile(self):
         vendor = self.get_mac_vendor()
         hostname = self.get_hostname()
         open_ports = self.scan_open_ports()
-        
-        # Prepare device info for notifications
-        device_info = {
-            'mac_address': self.mac_address,
-            'ip_address': self.ip_address,
-            'hostname': hostname,
-            'vendor': vendor,
-            'first_seen': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
-            'open_ports': open_ports
-        }
-        
-        # Send notifications if enabled
-        with self.app.app_context():
-            await self.telegram_notifier.notify_new_device_detected(device_info)
-            await self.email_notifier.notify_new_device_detected(device_info)
-        
         return (self.mac_address, self.ip_address, vendor, hostname, open_ports)
