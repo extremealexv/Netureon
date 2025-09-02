@@ -14,6 +14,7 @@ import logging
 from dotenv import load_dotenv
 from device_profiler import DeviceProfiler
 from version import __version__
+from webui.utils.telegram_notifier import TelegramNotifier
 
 # Configure logging
 logging.basicConfig(
@@ -34,6 +35,9 @@ DB_CONFIG = {
     'host': os.getenv('DB_HOST'),
     'port': os.getenv('DB_PORT')
 }
+
+# Initialize Telegram notifier
+notifier = TelegramNotifier()
 
 def get_local_subnet():
     """
@@ -179,6 +183,14 @@ def update_database(devices):
                     reviewed, device_name, device_type, notes
                 ) VALUES (%s::macaddr, %s, %s, %s::inet, FALSE, %s, %s, %s)
             """, (mac, timestamp, timestamp, ip, hostname, vendor, notes))
+            
+            # Send Telegram notification for new device
+            import asyncio
+            asyncio.run(notifier.notify_new_device(
+                device_name=hostname,
+                mac=mac,
+                ip=ip
+            ))
 
     conn.commit()
     cur.close()
