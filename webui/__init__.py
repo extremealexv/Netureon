@@ -3,10 +3,14 @@
 import os
 from dotenv import load_dotenv
 from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
 from .config.config import Config
 
 # Load environment variables
 load_dotenv()
+
+# Initialize SQLAlchemy
+db = SQLAlchemy()
 
 def create_app():
     app = Flask(__name__)
@@ -19,8 +23,7 @@ def create_app():
     )
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
-    # Initialize database
-    from .models.database import db
+    # Initialize extensions
     db.init_app(app)
     
     # Register blueprints and initialize routes
