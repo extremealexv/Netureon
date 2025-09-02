@@ -20,6 +20,9 @@ class EmailNotifier:
 
     def notify(self, subject: str, message: str) -> None:
         """Send an email notification."""
+        # Refresh enabled state in case it was changed
+        self.enabled = Configuration.get_setting('enable_email_notifications') == 'true'
+        
         if not self.enabled:
             return
 
