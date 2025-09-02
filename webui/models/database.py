@@ -1,6 +1,7 @@
 """Database connection and ORM setup."""
 
 import os
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
 from dotenv import load_dotenv
@@ -23,9 +24,24 @@ def init_db(app):
     # Initialize SQLAlchemy with the app
     db.init_app(app)
 
+    # Create all tables
+    with app.app_context():
+        db.create_all()
+
 class Database:
-    @staticmethod
-    def execute_query(query, params=None, fetch=True):
+    _flask_app = None
+
+    @classmethod
+    def _get_app(cls):
+        """Get or create Flask app instance."""
+        if cls._flask_app is None:
+            # Import here to avoid circular imports
+            from webui.app import app
+            cls._flask_app = app
+        return cls._flask_app
+
+    @classmethod
+    def execute_query(cls, query, params=None, fetch=True):
         """Execute a query and optionally fetch results using SQLAlchemy
         
         Args:
@@ -36,8 +52,8 @@ class Database:
         Returns:
             list: Query results if fetch=True, otherwise None
         """
-        from flask import current_app
-        with current_app.app_context():
+        app = cls._get_app()
+        with app.app_context():
             if params is None:
                 params = {}
             result = db.session.execute(text(query), params)
@@ -46,8 +62,8 @@ class Database:
             db.session.commit()
             return result.rowcount if result.rowcount > -1 else None
 
-    @staticmethod
-    def execute_query_single(query, params=None):
+    @classmethod
+    def execute_query_single(cls, query, params=None):
         """Execute a query and fetch a single row using SQLAlchemy
         
         Args:
@@ -57,18 +73,18 @@ class Database:
         Returns:
             tuple: A single row result or None if no results
         """
-        from flask import current_app
-        with current_app.app_context():
+        app = cls._get_app()
+        with app.app_context():
             if params is None:
                 params = {}
             result = db.session.execute(text(query), params)
             return result.fetchone()
 
-    @staticmethod
-    def execute_transaction(queries):
+    @classmethod
+    def execute_transaction(cls, queries):
         """Execute multiple queries in a transaction using SQLAlchemy"""
-        from flask import current_app
-        with current_app.app_context():
+        app = cls._get_app()
+        with app.app_context():
             try:
                 for query, params in queries:
                     if params is None:
