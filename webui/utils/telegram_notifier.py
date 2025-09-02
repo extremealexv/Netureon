@@ -18,11 +18,17 @@ class TelegramNotifier:
     
     def __init__(self):
         """Initialize the Telegram notifier."""
+        from webui.models.config import Configuration
+        self.enabled = Configuration.get_setting('enable_telegram_notifications') == 'true'
         self.bot_token = Config.get('TELEGRAM_BOT_TOKEN')
         self.chat_id = Config.get('TELEGRAM_CHAT_ID')
         self._bot = None
         self._loop = None
         
+        if not self.enabled:
+            logger.info("Telegram notifications are disabled")
+            return
+            
         if not self.bot_token:
             logger.warning("TELEGRAM_BOT_TOKEN not configured")
             return
@@ -92,6 +98,13 @@ class TelegramNotifier:
         Args:
             message: The message to send
         """
+        # Refresh enabled state in case it was changed
+        from webui.models.config import Configuration
+        self.enabled = Configuration.get_setting('enable_telegram_notifications') == 'true'
+        
+        if not self.enabled:
+            logger.debug("Telegram notifications are disabled")
+            return
         try:
             asyncio.run(self.send_message(message))
         except Exception as e:
