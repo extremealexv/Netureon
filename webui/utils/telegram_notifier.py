@@ -9,7 +9,7 @@ from telegram import Bot
 from telegram.error import TelegramError
 from telegram.constants import ParseMode
 from telegram.request import HTTPXRequest
-from ..config.config import Config
+from webui.models.config import Configuration
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +23,36 @@ class TelegramNotifier:
         self.bot_token = None
         self.chat_id = None
         self._init_done = False
+        
+    def _check_configuration(self):
+        """Check if Telegram notifications are properly configured."""
+        try:
+            enabled = Configuration.get_setting('enable_telegram_notifications')
+            if enabled != 'true':
+                logger.debug("Telegram notifications are disabled")
+                return False
+                
+            bot_token = Configuration.get_setting('telegram_bot_token')
+            chat_id = Configuration.get_setting('telegram_chat_id')
+            
+            if not bot_token or not chat_id:
+                logger.error("Telegram configuration incomplete - missing bot token or chat ID")
+                return False
+                
+            return True
+        except Exception as e:
+            logger.error(f"Error checking Telegram configuration: {e}")
+            return False
 
     def _init_if_needed(self):
         """Initialize settings if not already done."""
         if self._init_done:
-            return
+            return True
             
         try:
-            from webui.models.config import Configuration
+            if not self._check_configuration():
+                return False
+                
             self.bot_token = Configuration.get_setting('telegram_bot_token')
             self.chat_id = Configuration.get_setting('telegram_chat_id')
             
@@ -39,11 +61,13 @@ class TelegramNotifier:
                 self.chat_id = str(self.chat_id)
                 if not self.chat_id.startswith('-') and not self.chat_id.isdigit():
                     logger.error(f"Invalid telegram_chat_id format: {self.chat_id}")
-                    self.chat_id = None
+                    return False
             
             self._init_done = True
+            return True
         except Exception as e:
             logger.error(f"Failed to initialize Telegram notifier: {str(e)}")
+            return False
 
     @asynccontextmanager
     async def get_bot(self):
@@ -71,8 +95,8 @@ class TelegramNotifier:
         Returns:
             bool: True if message was sent successfully, False otherwise
         """
-        if not self.bot_token or not self.chat_id:
-            logger.error("Telegram bot not configured. Check TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in config.")
+        # Initialize if needed and check configuration
+        if not self._init_if_needed():
             return False
             
         try:
@@ -82,6 +106,7 @@ class TelegramNotifier:
                     text=message,
                     parse_mode=ParseMode.HTML
                 )
+            logger.info("Telegram message sent successfully")
             return True
         except TelegramError as e:
             logger.error(f"Failed to send Telegram message: {str(e)}")
@@ -97,27 +122,8 @@ class TelegramNotifier:
         Args:
             message: The message to send
         """
-        try:
-            from webui.models.config import Configuration
-            
-            # First check if notifications are enabled
-            if Configuration.get_setting('enable_telegram_notifications') != 'true':
-                logger.debug("Telegram notifications are disabled")
-                return
-            
-            # Then initialize if needed
-            self._init_if_needed()
-                
-            if not self.bot_token:
-                logger.warning("telegram_bot_token not configured")
-                return
-                
-            if not self.chat_id:
-                logger.warning("telegram_chat_id not configured")
-                return
-                
-        except Exception as e:
-            logger.error(f"Failed to check notification settings: {e}")
+        # Check configuration and initialize if needed
+        if not self._init_if_needed():
             return
         try:
             asyncio.run(self.send_message(message))
