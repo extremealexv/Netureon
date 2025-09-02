@@ -3,14 +3,11 @@
 import os
 from dotenv import load_dotenv
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 from .config.config import Config
+from .models.database import db
 
 # Load environment variables
 load_dotenv()
-
-# Initialize SQLAlchemy
-db = SQLAlchemy()
 
 def create_app():
     app = Flask(__name__)
