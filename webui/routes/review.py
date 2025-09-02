@@ -34,8 +34,8 @@ def handle_approve_action(selected_devices):
         device_info = Database.execute_query_single("""
             SELECT device_name, mac_address, device_type, last_seen, last_ip, notes, first_seen
             FROM new_devices
-            WHERE mac_address = %s
-        """, (mac,))
+            WHERE mac_address = :mac
+        """, {"mac": mac})
         
         if device_info:
             device_data = {
@@ -57,19 +57,13 @@ def handle_approve_action(selected_devices):
         
         queries = [
             ("""
-                WITH input_mac AS (
-                    SELECT %s::macaddr as addr
-                ),
-                device AS (
-                    SELECT device_name, mac_address::macaddr, device_type, last_seen, last_ip, notes
-                    FROM new_devices
-                    WHERE mac_address::macaddr = (SELECT addr FROM input_mac)
-                )
                 INSERT INTO known_devices 
                 (device_name, mac_address, device_type, last_seen, last_ip, notes)
-                SELECT * FROM device
-            """, (mac,)),
-            ("DELETE FROM new_devices WHERE mac_address = %s", (mac,))
+                SELECT device_name, mac_address, device_type, last_seen, last_ip, notes
+                FROM new_devices
+                WHERE mac_address = :mac
+            """, {"mac": mac}),
+            ("DELETE FROM new_devices WHERE mac_address = :mac", {"mac": mac})
         ]
         Database.execute_transaction(queries)
             
@@ -84,22 +78,18 @@ def handle_block_action(selected_devices):
         device_info = Database.execute_query_single("""
             SELECT mac_address, last_ip
             FROM new_devices
-            WHERE mac_address = %s
-        """, (mac,))
+            WHERE mac_address = :mac
+        """, {"mac": mac})
         
         queries = [
             ("""
-                WITH device AS (
-                    SELECT mac_address::macaddr, last_ip, first_seen, last_seen
-                    FROM new_devices
-                    WHERE mac_address = %s
-                )
                 INSERT INTO unknown_devices 
                 (mac_address, last_ip, first_seen, last_seen, threat_level, notes)
-                SELECT mac_address, last_ip, first_seen, last_seen, %s, %s
-                FROM device
-            """, (mac, threat_level, notes)),
-            ("DELETE FROM new_devices WHERE mac_address = %s", (mac,))
+                SELECT mac_address, last_ip, first_seen, last_seen, :threat_level, :notes
+                FROM new_devices
+                WHERE mac_address = :mac
+            """, {"mac": mac, "threat_level": threat_level, "notes": notes}),
+            ("DELETE FROM new_devices WHERE mac_address = :mac", {"mac": mac})
         ]
         
         Database.execute_transaction(queries)
@@ -111,5 +101,4 @@ def handle_block_action(selected_devices):
                 device_info[1],  # last_ip
                 threat_level
             ))
-        Database.execute_transaction(queries)
     flash(f'Marked {len(selected_devices)} devices as threats', 'warning')
