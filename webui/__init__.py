@@ -12,9 +12,6 @@ def create_app():
     app = Flask(__name__)
     app.secret_key = Config.SECRET_KEY
     
-    # Initialize database
-    from .models.database import db
-    
     # Configure SQLAlchemy
     app.config['SQLALCHEMY_DATABASE_URI'] = (
         f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@"
@@ -22,11 +19,23 @@ def create_app():
     )
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
-    # Initialize SQLAlchemy
+    # Initialize database
+    from .models.database import db
     db.init_app(app)
     
-    # Push the application context
-    app.app_context().push()
+    # Register blueprints and initialize routes
+    with app.app_context():
+        from .routes.review import review
+        from .routes.main import main
+        from .routes.config import config
+        from .routes.unknown import unknown
+        from .routes.system import system
+        
+        app.register_blueprint(main)
+        app.register_blueprint(review)
+        app.register_blueprint(config)
+        app.register_blueprint(unknown)
+        app.register_blueprint(system)
     
     # Import all models to ensure they're registered with SQLAlchemy
     from .models.config import Configuration
