@@ -3,8 +3,12 @@
 import asyncio
 import logging
 import sys
+from contextlib import asynccontextmanager
+import httpx
 from telegram import Bot
 from telegram.error import TelegramError
+from telegram.constants import ParseMode
+from telegram.request import HTTPXRequest
 from ..config.config import Config
 
 logger = logging.getLogger(__name__)
@@ -16,7 +20,7 @@ class TelegramNotifier:
         """Initialize the Telegram notifier."""
         self.bot_token = Config.get('TELEGRAM_BOT_TOKEN')
         self.chat_id = Config.get('TELEGRAM_CHAT_ID')
-        self.bot = None
+        self._bot = None
         self._loop = None
         
         if not self.bot_token:
@@ -28,15 +32,29 @@ class TelegramNotifier:
             return
             
         try:
-            self.bot = Bot(token=self.bot_token)
             # Verify the chat_id format
             self.chat_id = str(self.chat_id)
             if not self.chat_id.startswith('-') and not self.chat_id.isdigit():
                 logger.error(f"Invalid TELEGRAM_CHAT_ID format: {self.chat_id}")
-                self.bot = None
+                return
         except Exception as e:
-            logger.error(f"Failed to initialize Telegram bot: {str(e)}")
-            self.bot = None
+            logger.error(f"Failed to initialize Telegram notifier: {str(e)}")
+
+    @asynccontextmanager
+    async def get_bot(self):
+        """Get a bot instance with proper connection pooling."""
+        request = HTTPXRequest(
+            connection_pool_size=8,
+            read_timeout=30,
+            write_timeout=30,
+            connect_timeout=30,
+            pool_timeout=3.0
+        )
+        bot = Bot(token=self.bot_token, request=request)
+        try:
+            yield bot
+        finally:
+            await request.shutdown()
 
     async def send_message(self, message: str) -> bool:
         """
@@ -48,33 +66,24 @@ class TelegramNotifier:
         Returns:
             bool: True if message was sent successfully, False otherwise
         """
-        if not self.bot:
+        if not self.bot_token or not self.chat_id:
             logger.error("Telegram bot not configured. Check TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in config.")
             return False
             
         try:
-            await self.bot.send_message(
-                chat_id=self.chat_id,
-                text=message,
-                parse_mode='HTML'
-            )
+            async with self.get_bot() as bot:
+                await bot.send_message(
+                    chat_id=self.chat_id,
+                    text=message,
+                    parse_mode=ParseMode.HTML
+                )
             return True
         except TelegramError as e:
             logger.error(f"Failed to send Telegram message: {str(e)}")
             return False
-
-    def _ensure_event_loop(self):
-        """Ensure there's a running event loop or create a new one."""
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            return loop
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            return loop
+        except Exception as e:
+            logger.error(f"Unexpected error sending Telegram message: {str(e)}")
+            return False
 
     def notify(self, message: str) -> None:
         """
@@ -83,22 +92,10 @@ class TelegramNotifier:
         Args:
             message: The message to send
         """
-        if not self.bot:
-            logger.warning("Telegram bot not configured, skipping notification")
-            return
-            
-        loop = self._ensure_event_loop()
         try:
-            loop.run_until_complete(self.send_message(message))
+            asyncio.run(self.send_message(message))
         except Exception as e:
             logger.error(f"Failed to send Telegram message: {str(e)}")
-        finally:
-            try:
-                # Clean up any remaining tasks
-                pending = asyncio.all_tasks(loop)
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            except Exception:
-                pass
 
     async def notify_new_device_detected(self, device_info: dict) -> None:
         """
