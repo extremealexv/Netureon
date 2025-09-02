@@ -26,7 +26,11 @@ def config():
     if request.method == 'POST':
         # Update all settings
         for key in DEFAULT_SETTINGS.keys():
-            value = request.form.get(key, DEFAULT_SETTINGS[key])
+            if key in ['scanning_enabled', 'enable_email_notifications', 'enable_telegram_notifications']:
+                # Handle checkbox fields - they only appear in form data when checked
+                value = 'true' if key in request.form else 'false'
+            else:
+                value = request.form.get(key, DEFAULT_SETTINGS[key])
             Configuration.set_setting(key, value)
         
         flash('Configuration updated successfully', 'success')

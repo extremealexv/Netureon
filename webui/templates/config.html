@@ -87,7 +87,7 @@
             </div>
             <div class="card-body">
                 <div class="form-check mb-3">
-                    <input type="checkbox" class="form-check-input" id="scanning_enabled" name="scanning_enabled" value="true" {% if settings.scanning_enabled == 'true' %}checked{% endif %}>
+                    <input type="checkbox" class="form-check-input" id="scanning_enabled" name="scanning_enabled" {% if settings.scanning_enabled == 'true' %}checked{% endif %}>
                     <label class="form-check-label" for="scanning_enabled">Enable Network Scanning</label>
                 </div>
                 
