@@ -99,17 +99,17 @@ def handle_delete_action(selected_devices):
                 # Remove any existing alerts
                 ("""
                     DELETE FROM alerts 
-                    WHERE device_id::macaddr = :mac::macaddr
+                    WHERE device_id = :mac
                 """, {"mac": mac}),
                 # Remove from discovery_log
                 ("""
                     DELETE FROM discovery_log 
-                    WHERE mac_address::macaddr = :mac::macaddr
+                    WHERE mac_address = :mac
                 """, {"mac": mac}),
                 # Finally remove from known_devices
                 ("""
                     DELETE FROM known_devices 
-                    WHERE mac_address::macaddr = :mac::macaddr
+                    WHERE mac_address = :mac
                 """, {"mac": mac})
             ]
             
