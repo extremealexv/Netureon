@@ -55,6 +55,28 @@ class Database:
             conn.close()
 
     @staticmethod
+    def execute_query_single(query, params=None):
+        """Execute a query and fetch a single row
+        
+        Args:
+            query (str): The SQL query to execute
+            params (tuple, optional): Query parameters. Defaults to None.
+        
+        Returns:
+            tuple: A single row result or None if no results
+        """
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(query, params)
+            result = cur.fetchone()
+            conn.commit()
+            return result
+        finally:
+            cur.close()
+            conn.close()
+
+    @staticmethod
     def execute_transaction(queries):
         """Execute multiple queries in a transaction"""
         conn = Database.get_connection()
