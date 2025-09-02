@@ -2,7 +2,7 @@ import socket
 import requests
 import subprocess
 from datetime import datetime
-from webui.models.config import Configuration
+from webui.app import create_app
 from webui.utils.telegram_notifier import TelegramNotifier
 from webui.utils.email_notifier import EmailNotifier
 
@@ -12,6 +12,8 @@ class DeviceProfiler:
         self.ip_address = ip_address
         self.telegram_notifier = TelegramNotifier()
         self.email_notifier = EmailNotifier()
+        # Create Flask app instance
+        self.app = create_app()
 
     def get_mac_vendor(self):
         url = f"https://api.macvendors.com/{self.mac_address}"
@@ -60,7 +62,8 @@ class DeviceProfiler:
         }
         
         # Send notifications if enabled
-        await self.telegram_notifier.notify_new_device_detected(device_info)
-        await self.email_notifier.notify_new_device_detected(device_info)
+        with self.app.app_context():
+            await self.telegram_notifier.notify_new_device_detected(device_info)
+            await self.email_notifier.notify_new_device_detected(device_info)
         
         return (self.mac_address, self.ip_address, vendor, hostname, open_ports)
