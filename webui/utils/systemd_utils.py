@@ -11,30 +11,11 @@ def update_scan_timer(interval_seconds):
         interval_seconds (int): The new interval in seconds
     """
     try:
-        # Create or update the timer unit file
-        timer_config = f"""[Unit]
-Description=NetGuard Network Scanner Timer
-
-[Timer]
-OnBootSec=60
-OnUnitActiveSec={interval_seconds}s
-AccuracySec=1s
-
-[Install]
-WantedBy=timers.target
-"""
-        # First write to a temporary file
-        temp_path = '/tmp/netguard_scan.timer'
-        with open(temp_path, 'w') as f:
-            f.write(timer_config)
-
-        # Use sudo to move the file to systemd directory
-        subprocess.run(['sudo', 'mv', temp_path, '/etc/systemd/system/netguard_scan.timer'], check=True)
-        subprocess.run(['sudo', 'chmod', '644', '/etc/systemd/system/netguard_scan.timer'], check=True)
+        import os
+        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'update_timer.sh')
         
-        # Reload systemd and restart the timer
-        subprocess.run(['sudo', 'systemctl', 'daemon-reload'], check=True)
-        subprocess.run(['sudo', 'systemctl', 'restart', 'netguard_scan.timer'], check=True)
+        # Run the update script using sudo
+        subprocess.run(['sudo', script_path, str(interval_seconds)], check=True)
         
         logger.info(f"Successfully updated scan interval to {interval_seconds} seconds")
     except Exception as e:
