@@ -32,6 +32,19 @@ def config():
             else:
                 value = request.form.get(key, DEFAULT_SETTINGS[key])
             Configuration.set_setting(key, value)
+
+            # Handle scanning interval updates
+            if key == 'scanning_interval':
+                from ..utils.systemd_utils import update_scan_timer
+                try:
+                    interval = int(value)
+                    update_scan_timer(interval)
+                except ValueError:
+                    flash('Invalid scanning interval value', 'error')
+                    return redirect(url_for('config.config'))
+                except Exception as e:
+                    flash(f'Failed to update scanning interval: {str(e)}', 'error')
+                    return redirect(url_for('config.config'))
         
         flash('Configuration updated successfully', 'success')
         return redirect(url_for('config.config'))
