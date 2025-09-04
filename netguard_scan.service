@@ -4,9 +4,9 @@ After=network.target postgresql.service
 
 [Service]
 Type=oneshot
-User=netguard
-WorkingDirectory=/opt/netguard
-ExecStart=/opt/netguard/venv/bin/python net_scan.py
+User=orangepi
+WorkingDirectory=/home/orangepi/NetGuard
+ExecStart=/home/orangepi/NetGuard/venv/bin/python net_scan.py
 RemainAfterExit=no
 
 [Install]
