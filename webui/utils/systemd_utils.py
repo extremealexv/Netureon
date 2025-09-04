@@ -18,13 +18,20 @@ Description=NetGuard Network Scanner Timer
 [Timer]
 OnBootSec=60
 OnUnitActiveSec={interval_seconds}s
+AccuracySec=1s
 
 [Install]
 WantedBy=timers.target
 """
-        with open('/etc/systemd/system/netguard_scan.timer', 'w') as f:
+        # First write to a temporary file
+        temp_path = '/tmp/netguard_scan.timer'
+        with open(temp_path, 'w') as f:
             f.write(timer_config)
 
+        # Use sudo to move the file to systemd directory
+        subprocess.run(['sudo', 'mv', temp_path, '/etc/systemd/system/netguard_scan.timer'], check=True)
+        subprocess.run(['sudo', 'chmod', '644', '/etc/systemd/system/netguard_scan.timer'], check=True)
+        
         # Reload systemd and restart the timer
         subprocess.run(['sudo', 'systemctl', 'daemon-reload'], check=True)
         subprocess.run(['sudo', 'systemctl', 'restart', 'netguard_scan.timer'], check=True)
