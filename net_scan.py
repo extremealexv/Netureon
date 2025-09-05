@@ -186,15 +186,12 @@ class NetworkScanner:
                             mac_address,
                             ip_address,
                             timestamp,
-                            hostname,
-                            vendor
-                        ) VALUES (%s, %s, %s, %s, %s)
+                            is_known
+                        ) VALUES (%s, %s, %s, TRUE)
                     """, (
                         mac,
                         ip,
-                        now,
-                        profile['hostname'] if 'hostname' in profile else old_hostname,
-                        profile['vendor'] if 'vendor' in profile else old_vendor
+                        now
                     ))
                     
                 else:
