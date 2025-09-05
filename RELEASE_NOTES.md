@@ -1,43 +1,63 @@
-# NetGuard v1.2.1 Release Notes
+# NetGuard v1.3.1 Release Notes
 
 ## 🚀 New Features
 
-### Network Scanner Improvements
-- Added comprehensive logging system
-- Implemented retry mechanism for network scans
-- Enhanced subnet detection with better error handling
-- Added duplicate device filtering in scan results
-- Improved documentation and type hints
+### Scanning System Improvements
+- Added configurable scanning intervals via web interface
+- Implemented systemd timer for reliable scanning scheduling
+- Enhanced device profiling with more detailed information
+- Added network interface detection and configuration
+- Improved duplicate device handling
 
-### Version Management
-- Added version tracking system
-- Implemented Python version compatibility check
-- Added version information to log outputs
-- Created centralized version management
+### Configuration Management
+- Added web-based configuration interface
+- Implemented real-time configuration updates
+- Added configuration validation and error handling
+- Created centralized configuration management
+- Added support for Telegram notifications
 
-### Documentation Updates
-- Updated technical documentation
-- Enhanced inline code documentation
-- Added comprehensive docstrings
-- Improved error messages and logging
+### Web Interface Enhancements
+- Added system information dashboard
+- Improved device management interface
+- Enhanced configuration controls
+- Added real-time status updates
+- Improved error handling and user feedback
 
 ## 🔧 Technical Improvements
 
 ### Code Quality
-- Improved error handling across core components
+- Improved error handling across all components
 - Enhanced logging system implementation
-- Better type safety and input validation
-- Duplicate entry prevention in device scanning
+- Added comprehensive type hints
+- Improved code documentation
+- Added configuration validation
 
-### Performance
-- Optimized network scanning with retry mechanism
-- Improved device tracking efficiency
-- Enhanced database operation reliability
+### Performance & Reliability
+- Optimized network scanning process
+- Improved database operations efficiency
+- Enhanced service management
+- Added proper error recovery
+- Improved systemd integration
 
 ## 🐛 Bug Fixes
-- Fixed subnet detection edge cases
-- Improved error handling in network scanning
-- Enhanced database connection reliability
+- Fixed scanning interval configuration issues
+- Improved service restart handling
+- Enhanced error handling in network scanning
+- Fixed configuration persistence issues
+- Improved database connection reliability
+
+## 📝 Notes
+- Requires Python 3.8 or higher
+- PostgreSQL 13 or higher recommended
+- Database schema updated for better device tracking
+- Added support for both Windows and Linux installations
+
+## 🔜 Coming Soon
+- Enhanced threat detection
+- Improved device fingerprinting
+- Network topology mapping
+- Advanced alert rules
+- API improvements
 
 ## 📝 Notes
 - Requires Python 3.8 or higher
