@@ -16,17 +16,33 @@ systemctl stop netureon.service netureon-alerts.service netureon_web.service net
 echo "Setting up Python environment..."
 cd "$INSTALL_PATH" || exit 1
 
+# Remove existing venv if it's broken
+if [ -d "$INSTALL_PATH/.venv" ] && ! [ -f "$INSTALL_PATH/.venv/bin/python" ]; then
+    echo "Removing broken virtual environment..."
+    sudo -u "$REAL_USER" rm -rf .venv
+fi
+
 # Create venv if it doesn't exist
 if [ ! -d "$INSTALL_PATH/.venv" ]; then
     echo "Creating virtual environment..."
     sudo -u "$REAL_USER" python3 -m venv .venv
+    if [ ! -f "$INSTALL_PATH/.venv/bin/python" ]; then
+        echo "❌ Failed to create virtual environment"
+        exit 1
+    fi
 fi
 
-# Always update pip and install/upgrade packages
+# Function to run pip commands as the real user
+pip_install() {
+    sudo -u "$REAL_USER" bash -c "source .venv/bin/activate && pip $*"
+}
+
+# Install/upgrade packages
 echo "Installing required packages..."
-sudo -u "$REAL_USER" .venv/bin/pip install --upgrade pip
-sudo -u "$REAL_USER" .venv/bin/pip install --upgrade psycopg2-binary python-dotenv flask requests psutil netifaces setuptools
-sudo -u "$REAL_USER" .venv/bin/pip install -r requirements.txt
+pip_install install --upgrade pip
+pip_install install --upgrade setuptools wheel
+pip_install install --upgrade psycopg2-binary python-dotenv flask requests psutil netifaces
+pip_install install -r requirements.txt
 
 # Verify critical packages
 echo "Verifying installation..."
