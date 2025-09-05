@@ -5,10 +5,10 @@ Wants=netureon_scan.timer
 
 [Service]
 Type=oneshot
-User=%i
-WorkingDirectory=%h/Netureon
-Environment=PATH=%h/Netureon/.venv/bin:$PATH
-ExecStart=%h/Netureon/.venv/bin/python net_scan.py
+User=orangepi
+WorkingDirectory=/home/orangepi/Netureon
+Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH
+ExecStart=/home/orangepi/Netureon/.venv/bin/python net_scan.py
 RemainAfterExit=no
 # Set resource limits to prevent runaway scans
 CPUQuota=50%
