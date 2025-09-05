@@ -32,6 +32,13 @@ class Database:
         self._ensure_context()
         if params is None:
             params = {}
+            
+        # Convert named parameters from :name to %(name)s format
+        if params:
+            for key in params:
+                if f":{key}" in query:
+                    query = query.replace(f":{key}", f"%({key})s")
+                    
         result = db.session.execute(text(query), params)
         if fetch:
             return result.fetchall()
