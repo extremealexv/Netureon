@@ -1,7 +1,28 @@
 #!/bin/bash
 
-# Get the actual user's home directory
-REAL_USER=${SUDO_USER:-$USER}
+# Get the actual user's home d# Function to run pip commands
+pip_install() {
+    sudo -u "$REAL_USER" bash -c "
+        source .venv/bin/activate
+        pip $*
+    "
+}
+
+# Install/upgrade packages
+echo "Installing required packages..."
+# First upgrade pip
+sudo -u "$REAL_USER" bash -c "
+    source .venv/bin/activate
+    pip install --upgrade pip
+"
+
+# Install required packages
+sudo -u "$REAL_USER" bash -c "
+    source .venv/bin/activate
+    pip install --upgrade setuptools wheel
+    pip install --upgrade psycopg2-binary python-dotenv flask requests psutil netifaces
+    pip install -r requirements.txt
+"ER=${SUDO_USER:-$USER}
 USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 INSTALL_PATH="$USER_HOME/Netureon"
 
@@ -16,10 +37,12 @@ systemctl stop netureon.service netureon-alerts.service netureon_web.service net
 echo "Setting up Python environment..."
 cd "$INSTALL_PATH" || exit 1
 
-# Remove existing venv if it's broken
+# Fix virtual environment permissions and recreate
 if [ -d ".venv" ]; then
-    echo "Removing existing virtual environment..."
-    sudo -u "$REAL_USER" rm -rf .venv
+    echo "Cleaning up existing virtual environment..."
+    # Change ownership to root temporarily to remove
+    chown -R root:root .venv
+    rm -rf .venv
 fi
 
 # Ensure python3-venv is installed
@@ -30,11 +53,14 @@ fi
 
 # Create fresh virtual environment
 echo "Creating virtual environment..."
-sudo -u "$REAL_USER" python3 -m venv .venv
+python3 -m venv .venv
 if [ ! -f ".venv/bin/python" ]; then
     echo "❌ Failed to create virtual environment"
     exit 1
 fi
+
+# Fix permissions on the new virtual environment
+chown -R "$REAL_USER:$REAL_USER" .venv
 
 # Function to run pip commands as the real user with full path
 pip_install() {
