@@ -71,7 +71,7 @@ def get_system_info():
         'network': net_info,
         'database': db_version,
         'resources': resources,
-        'netguard_version': __version__
+        'version': __version__
     }
 
 @bp.route('/system')

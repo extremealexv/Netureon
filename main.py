@@ -22,7 +22,7 @@ def check_version():
     return True
 
 def main():
-    """Main entry point for NetGuard."""
+    """Main entry point for Netureon."""
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,
@@ -33,8 +33,19 @@ def main():
     check_version()
     
     # Display startup message
-    print(f"🛡️ NetGuard {__version__} is running")
+    print(f"🛡️ Netureon {__version__} is running")
     print("✨ Network monitoring and security management system")
+    
+    try:
+        # Import scanner after logging is configured
+        from net_scan import NetworkScanner
+        scanner = NetworkScanner()
+        scanner.start_monitoring()
+    except KeyboardInterrupt:
+        logging.info("Shutting down Netureon...")
+    except Exception as e:
+        logging.error(f"Error in main loop: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
