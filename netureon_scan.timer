@@ -1,6 +1,6 @@
 [Unit]
-Description=NetGuard Network Scanner Timer
-Documentation=https://github.com/yourusername/NetGuard
+Description=Netureon Network Scanner Timer
+Documentation=https://github.com/extremealexv/Netureon
 
 [Timer]
 # Wait 60s after boot before first scan

@@ -47,34 +47,34 @@ Netureon is a comprehensive network monitoring and security solution designed to
 ### Windows Setup
 ```powershell
 # Clone the repository
-git clone https://github.com/extremealexv/NetGuard.git
-cd NetGuard
+git clone https://github.com/extremealexv/Netureon.git
+cd Netureon
 
 # Run the setup script
 .\setup.ps1
 
 # Start the services
-Start-Service NetGuard
-Start-Service NetGuardAlerts
+Start-Service Netureon
+Start-Service NetureonAlerts
 ```
 
 ### Linux Setup
 ```bash
 # Clone the repository
-git clone https://github.com/extremealexv/NetGuard.git
-cd NetGuard
+git clone https://github.com/extremealexv/Netureon.git
+cd Netureon
 
 # Run the setup script
 chmod +x setup.sh
 ./setup.sh
 
 # Start the services
-sudo systemctl start netguard
-sudo systemctl start netguard-alerts
+sudo systemctl start netureon
+sudo systemctl start netureon-alerts
 ```
 
 ## 📖 Documentation
-For detailed documentation about project architecture, configuration options, and advanced features, please see [NetGuard.md](NetGuard.md).
+For detailed documentation about project architecture, configuration options, and advanced features, please see [Netureon.md](Netureon.md).
 
 ## � Quick Installation
 
@@ -126,8 +126,8 @@ To enable Telegram notifications, you'll need to create a Telegram bot and confi
    /newbot
    ```
 3. Follow the prompts:
-   - Enter a name for your bot (e.g., "MyNetGuard Bot")
-   - Enter a username for your bot (must end in 'bot', e.g., "my_netguard_bot")
+   - Enter a name for your bot (e.g., "MyNetureon Bot")
+   - Enter a username for your bot (must end in 'bot', e.g., "my_netureon_bot")
 4. Save the API token BotFather gives you
 5. Start a chat with your new bot and send it any message
 6. Get your chat ID:

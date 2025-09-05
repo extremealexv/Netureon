@@ -1,4 +1,4 @@
-"""Configuration routes for NetGuard."""
+"""Configuration routes for Netureon."""
 from flask import Blueprint, render_template, request, flash, redirect, url_for
 from webui.models.config import Configuration
 from webui.models.database import db

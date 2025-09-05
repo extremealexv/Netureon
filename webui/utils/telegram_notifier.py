@@ -1,4 +1,4 @@
-"""Telegram notification module for NetGuard."""
+"""Telegram notification module for Netureon."""
 
 import asyncio
 import logging
@@ -14,7 +14,7 @@ from webui.models.config import Configuration
 logger = logging.getLogger(__name__)
 
 class TelegramNotifier:
-    """Telegram notification handler for NetGuard."""
+    """Telegram notification handler for Netureon."""
     
     def __init__(self):
         """Initialize the Telegram notifier."""

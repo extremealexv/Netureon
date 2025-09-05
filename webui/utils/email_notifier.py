@@ -1,4 +1,4 @@
-"""Email notification system for NetGuard."""
+"""Email notification system for Netureon."""
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -55,7 +55,7 @@ class EmailNotifier:
         msg = MIMEMultipart()
         msg['From'] = self.from_address
         msg['To'] = self.to_address
-        msg['Subject'] = f'NetGuard Alert: {subject}'
+        msg['Subject'] = f'Netureon Alert: {subject}'
 
         msg.attach(MIMEText(message, 'plain'))
 

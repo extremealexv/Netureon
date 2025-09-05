@@ -1,4 +1,4 @@
-"""Configuration model for NetGuard."""
+"""Configuration model for Netureon."""
 from datetime import datetime
 from .database import db
 

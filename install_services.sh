@@ -39,12 +39,12 @@ mkdir -p /etc/netguard
 
 # Create environment file for service configuration
 cat > /etc/netguard/netguard.conf << EOL
-# NetGuard Service Configuration
-NETGUARD_USER=${REAL_USER}
-NETGUARD_HOME=${SCRIPT_DIR}
-NETGUARD_SCAN_INTERVAL=900  # Scan interval in seconds (default: 15 minutes)
-NETGUARD_MAX_MEMORY=512M    # Maximum memory for scan service
-NETGUARD_CPU_QUOTA=50%      # CPU quota for scan service
+# Netureon Service Configuration
+NETUREON_USER=${REAL_USER}
+NETUREON_HOME=${SCRIPT_DIR}
+NETUREON_SCAN_INTERVAL=900  # Scan interval in seconds (default: 15 minutes)
+NETUREON_MAX_MEMORY=512M    # Maximum memory for scan service
+NETUREON_CPU_QUOTA=50%      # CPU quota for scan service
 EOL
 
 # Source the configuration
