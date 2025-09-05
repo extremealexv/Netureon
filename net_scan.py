@@ -206,7 +206,7 @@ class NetworkScanner:
                         WHERE mac_address = %s::macaddr
                     """, (timestamp, ip, mac))
                 else:  # unregistered
-                    # Profile device
+                            # Profile device
                     profiler = DeviceProfiler(mac_address=mac, ip_address=ip)
                     vendor = profiler.get_mac_vendor()
                     hostname = profiler.get_hostname()
@@ -241,6 +241,55 @@ class NetworkScanner:
                         await self.email_notifier.notify_new_device_detected(device_info)
                     except Exception as e:
                         logger.error(f"Failed to send email notification: {e}")
+                    
+                    try:
+                        await self.telegram_notifier.notify_new_device_detected(device_info)
+                    except Exception as e:
+                        logger.error(f"Failed to send telegram notification: {e}")
+                    
+                    logger.info(f"New device discovered: {hostname} ({mac} at {ip})")
+            
+            conn.commit()
+        
+        except Exception as e:
+            logger.error(f"Database update error: {e}")
+            if conn:
+                conn.rollback()
+            raise
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+            
+            conn.commit()
+        
+        except Exception as e:
+            logger.error(f"Database update error: {e}")
+            if conn:
+                conn.rollback()
+            raise
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+                    
+                    # Send notifications for new device
+                    device_info = {
+                        'hostname': hostname,
+                        'mac_address': mac,
+                        'ip_address': ip,
+                        'vendor': vendor,
+                        'first_seen': timestamp,
+                        'open_ports': open_ports,
+                        'notes': notes
+                    }
+                    
+                    try:
+                        await self.email_notifier.notify_new_device_detected(device_info)
+                    except Exception as e:
+                        logger.error(f"Failed to send email notification: {e}")
                         
                     try:
                         await self.telegram_notifier.notify_new_device_detected(device_info)
@@ -254,11 +303,14 @@ class NetworkScanner:
             
         except Exception as e:
             logger.error(f"Database update error: {e}")
-            conn.rollback()
+            if conn:
+                conn.rollback()
             raise
         finally:
-            cur.close()
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     def scan_network(self, subnet, timeout=3, retry=2):
         """
@@ -372,12 +424,14 @@ class NetworkScanner:
             
         except Exception as e:
             logger.error(f"Database update error: {e}")
-            conn.rollback()
+            if conn:
+                conn.rollback()
             raise
         finally:
-            cur.close()
-            conn.close()
-            email_notifier = EmailNotifier()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
             telegram_notifier = TelegramNotifier()
             
             # Send notifications
