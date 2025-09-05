@@ -12,10 +12,13 @@ from datetime import datetime
 import ipaddress
 import os
 import logging
+import time
 from dotenv import load_dotenv
 from device_profiler import DeviceProfiler
 from version import __version__
 from webui.app import create_app
+from webui.utils.email_notifier import EmailNotifier
+from webui.utils.telegram_notifier import TelegramNotifier
 
 # Configure logging
 logging.basicConfig(
@@ -78,118 +81,297 @@ def get_local_subnet():
 
     raise RuntimeError("No active LAN interface with IPv4 found.")
 
-def scan_network(subnet, timeout=3, retry=2):
-    """
-    Perform ARP scan on the specified subnet to discover active devices.
-    
-    Args:
-        subnet (str): Target subnet in CIDR notation
-        timeout (int): Timeout for each scan attempt in seconds
-        retry (int): Number of retry attempts for failed scans
+class NetworkScanner:
+    def __init__(self):
+        """Initialize the network scanner."""
+        self.profiler = DeviceProfiler()
+        self.running = False
+        self.email_notifier = EmailNotifier()
+        self.telegram_notifier = TelegramNotifier()
         
-    Returns:
-        list: List of tuples containing (ip_address, mac_address) for discovered devices
-    """
-    logger.info(f"Starting network scan on subnet {subnet}")
-    arp = ARP(pdst=subnet)
-    ether = Ether(dst="ff:ff:ff:ff:ff:ff")
-    packet = ether / arp
+    async def start_monitoring(self):
+        """Start the network monitoring loop."""
+        self.running = True
+        logger.info("Starting network monitoring...")
+        
+        while self.running:
+            try:
+                subnet = get_local_subnet()
+                devices = self.scan_network(subnet)
+                
+                # Update database with discovered devices
+                await self.update_database(devices)
+                
+                # Wait before next scan
+                logger.info("Scan complete. Waiting 300 seconds before next scan...")
+                for _ in range(30):  # Break into smaller sleeps for better shutdown
+                    if not self.running:
+                        break
+                    await asyncio.sleep(10)
+                    
+            except Exception as e:
+                logger.error(f"Error in monitoring loop: {e}")
+                if not self.running:
+                    break
+                await asyncio.sleep(60)  # Wait before retry on error
     
-    devices = set()  # Using set to avoid duplicates
-    attempts = 0
-    
-    while attempts < retry:
-        try:
-            result = srp(packet, timeout=timeout, verbose=0)[0]
-            for sent, received in result:
-                devices.add((received.psrc, received.hwsrc))
-            break  # Success, exit loop
-        except Exception as e:
-            attempts += 1
-            logger.warning(f"Scan attempt {attempts} failed: {e}")
-            if attempts == retry:
-                logger.error("All scan attempts failed")
-                raise
-    
-    logger.info(f"Discovered {len(devices)} devices")
-    return list(devices)
+    def stop_monitoring(self):
+        """Stop the network monitoring loop."""
+        self.running = False
+        logger.info("Stopping network monitoring...")
 
-def update_database(devices):
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
-
-    for ip, mac in devices:
-        timestamp = datetime.now()
-
-        # Check device status across all tables
-        cur.execute("""
-            SELECT 
-                CASE 
-                    WHEN EXISTS (SELECT 1 FROM known_devices WHERE mac_address = %s::macaddr) THEN 'known'
-                    WHEN EXISTS (SELECT 1 FROM unknown_devices WHERE mac_address = %s::macaddr) THEN 'threat'
-                    WHEN EXISTS (SELECT 1 FROM new_devices WHERE mac_address = %s::macaddr) THEN 'new'
-                    ELSE 'unregistered'
-                END as device_status
-        """, (mac, mac, mac))
-        status = cur.fetchone()[0]
-
-        # Log discovery
-        cur.execute("""
-            INSERT INTO discovery_log (mac_address, ip_address, timestamp, is_known)
-            VALUES (%s::macaddr, %s::inet, %s, %s)
-        """, (mac, ip, timestamp, status == 'known'))
-
-        # Handle device based on its status
-        if status == 'known':
-            # Update known device's last seen time
-            cur.execute("""
-                UPDATE known_devices 
-                SET last_seen = %s, last_ip = %s::inet 
-                WHERE mac_address = %s::macaddr
-            """, (timestamp, ip, mac))
-        elif status == 'threat':
-            # Update threat device's last seen time
-            cur.execute("""
-                UPDATE unknown_devices 
-                SET last_seen = %s, last_ip = %s 
-                WHERE mac_address::text = %s
-            """, (timestamp, ip, mac))
-        elif status == 'new':
-            # Update new device's last seen time
-            cur.execute("""
-                UPDATE new_devices 
-                SET last_seen = %s, last_ip = %s::inet
-                WHERE mac_address = %s::macaddr
-            """, (timestamp, ip, mac))
-        else:  # unregistered
-            # Profile device
-            profiler = DeviceProfiler(mac, ip)
-            vendor = profiler.get_mac_vendor()
-            hostname = profiler.get_hostname()
-            open_ports = profiler.scan_open_ports()
-
-            notes = f"Vendor: {vendor}, Hostname: {hostname}"
-            if open_ports:
-                notes += f", Open Ports: {', '.join(map(str, open_ports))}"
-            else:
-                notes += ", No common ports open"
-
-            # Insert new device for review
-            cur.execute("""
-                INSERT INTO new_devices (
-                    mac_address, first_seen, last_seen, last_ip, 
-                    reviewed, device_name, device_type, notes
-                ) VALUES (%s::macaddr, %s, %s, %s::inet, FALSE, %s, %s, %s)
-            """, (mac, timestamp, timestamp, ip, hostname, vendor, notes))
+    def scan_network(self, subnet, timeout=3, retry=2):
+        """
+        Perform ARP scan on the specified subnet to discover active devices.
+        
+        Args:
+            subnet (str): Target subnet in CIDR notation
+            timeout (int): Timeout for each scan attempt in seconds
+            retry (int): Number of retry attempts for failed scans
             
-            # Send notifications for new device
-            device_info = {
-                'hostname': hostname,
-                'mac_address': mac,
-                'ip_address': ip,
-                'vendor': vendor,
-                'first_seen': timestamp,
-                'open_ports': open_ports
+        Returns:
+            list: List of tuples containing (ip_address, mac_address) for discovered devices
+        """
+        logger.info(f"Starting network scan on subnet {subnet}")
+        arp = ARP(pdst=subnet)
+        ether = Ether(dst="ff:ff:ff:ff:ff:ff")
+        packet = ether / arp
+        
+        devices = set()  # Using set to avoid duplicates
+        attempts = 0
+        
+        while attempts < retry:
+            try:
+                result = srp(packet, timeout=timeout, verbose=0)[0]
+                for sent, received in result:
+                    devices.add((received.psrc, received.hwsrc))
+                break  # Successful scan, exit loop
+            except Exception as e:
+                attempts += 1
+                if attempts == retry:
+                    logger.error(f"Network scan failed after {retry} attempts: {e}")
+                else:
+                    logger.warning(f"Scan attempt {attempts} failed: {e}")
+                    time.sleep(1)  # Brief pause before retry
+        
+        logger.info(f"Discovered {len(devices)} devices")
+        return list(devices)
+    
+    async def update_database(self, devices):
+        """Update database with discovered devices and send notifications for new devices."""
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
+
+        try:
+            for ip, mac in devices:
+                timestamp = datetime.now()
+
+                # Check device status across all tables
+                cur.execute("""
+                    SELECT 
+                        CASE 
+                            WHEN EXISTS (SELECT 1 FROM known_devices WHERE mac_address = %s::macaddr) THEN 'known'
+                            WHEN EXISTS (SELECT 1 FROM unknown_devices WHERE mac_address = %s::macaddr) THEN 'threat'
+                            WHEN EXISTS (SELECT 1 FROM new_devices WHERE mac_address = %s::macaddr) THEN 'new'
+                            ELSE 'unregistered'
+                        END as device_status
+                """, (mac, mac, mac))
+                status = cur.fetchone()[0]
+
+                # Log discovery
+                cur.execute("""
+                    INSERT INTO discovery_log (mac_address, ip_address, timestamp, is_known)
+                    VALUES (%s::macaddr, %s::inet, %s, %s)
+                """, (mac, ip, timestamp, status == 'known'))
+
+                # Handle device based on its status
+                if status == 'known':
+                    # Update known device's last seen time
+                    cur.execute("""
+                        UPDATE known_devices 
+                        SET last_seen = %s, last_ip = %s::inet 
+                        WHERE mac_address = %s::macaddr
+                    """, (timestamp, ip, mac))
+                elif status == 'threat':
+                    # Update threat device's last seen time
+                    cur.execute("""
+                        UPDATE unknown_devices 
+                        SET last_seen = %s, last_ip = %s 
+                        WHERE mac_address::text = %s
+                    """, (timestamp, ip, mac))
+                elif status == 'new':
+                    # Update new device's last seen time
+                    cur.execute("""
+                        UPDATE new_devices 
+                        SET last_seen = %s, last_ip = %s::inet
+                        WHERE mac_address = %s::macaddr
+                    """, (timestamp, ip, mac))
+                else:  # unregistered
+                    # Profile device
+                    profiler = DeviceProfiler(mac, ip)
+                    vendor = profiler.get_mac_vendor()
+                    hostname = profiler.get_hostname()
+                    open_ports = profiler.scan_open_ports()
+
+                    notes = f"Vendor: {vendor}, Hostname: {hostname}"
+                    if open_ports:
+                        notes += f", Open Ports: {', '.join(map(str, open_ports))}"
+                    else:
+                        notes += ", No common ports open"
+
+                    # Insert new device for review
+                    cur.execute("""
+                        INSERT INTO new_devices (
+                            mac_address, first_seen, last_seen, last_ip, 
+                            reviewed, device_name, device_type, notes
+                        ) VALUES (%s::macaddr, %s, %s, %s::inet, FALSE, %s, %s, %s)
+                    """, (mac, timestamp, timestamp, ip, hostname, vendor, notes))
+                    
+                    # Send notifications for new device
+                    device_info = {
+                        'hostname': hostname,
+                        'mac_address': mac,
+                        'ip_address': ip,
+                        'vendor': vendor,
+                        'first_seen': timestamp,
+                        'open_ports': open_ports,
+                        'notes': notes
+                    }
+                    
+                    try:
+                        await self.email_notifier.notify_new_device_detected(device_info)
+                    except Exception as e:
+                        logger.error(f"Failed to send email notification: {e}")
+                        
+                    try:
+                        await self.telegram_notifier.notify_new_device_detected(device_info)
+                    except Exception as e:
+                        logger.error(f"Failed to send telegram notification: {e}")
+                
+                    # Log new device discovery
+                    logger.info(f"New device discovered: {hostname} ({mac} at {ip})")
+
+            conn.commit()
+            
+        except Exception as e:
+            logger.error(f"Database update error: {e}")
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+
+    def scan_network(self, subnet, timeout=3, retry=2):
+        """
+        Perform ARP scan on the specified subnet to discover active devices.
+        
+        Args:
+            subnet (str): Target subnet in CIDR notation
+            timeout (int): Timeout for each scan attempt in seconds
+            retry (int): Number of retry attempts for failed scans
+            
+        Returns:
+            list: List of tuples containing (ip_address, mac_address) for discovered devices
+        """
+        logger.info(f"Starting network scan on subnet {subnet}")
+        arp = ARP(pdst=subnet)
+        ether = Ether(dst="ff:ff:ff:ff:ff:ff")
+        packet = ether / arp
+        
+        devices = set()  # Using set to avoid duplicates
+        attempts = 0
+        
+        while attempts < retry:
+            try:
+                result = srp(packet, timeout=timeout, verbose=0)[0]
+                for sent, received in result:
+                    devices.add((received.psrc, received.hwsrc))
+                break  # Successful scan, exit loop
+            except Exception as e:
+                attempts += 1
+                if attempts == retry:
+                    logger.error(f"Network scan failed after {retry} attempts: {e}")
+                else:
+                    logger.warning(f"Scan attempt {attempts} failed: {e}")
+                    asyncio.sleep(1)  # Brief pause before retry
+        
+        logger.info(f"Discovered {len(devices)} devices")
+        return list(devices)
+    
+    def update_database(self, devices):
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
+
+        for ip, mac in devices:
+            timestamp = datetime.now()
+
+            # Check device status across all tables
+            cur.execute("""
+                SELECT 
+                    CASE 
+                        WHEN EXISTS (SELECT 1 FROM known_devices WHERE mac_address = %s::macaddr) THEN 'known'
+                        WHEN EXISTS (SELECT 1 FROM unknown_devices WHERE mac_address = %s::macaddr) THEN 'threat'
+                        WHEN EXISTS (SELECT 1 FROM new_devices WHERE mac_address = %s::macaddr) THEN 'new'
+                        ELSE 'unregistered'
+                    END as device_status
+            """, (mac, mac, mac))
+            status = cur.fetchone()[0]
+
+            # Log discovery
+            cur.execute("""
+                INSERT INTO discovery_log (mac_address, ip_address, timestamp, is_known)
+                VALUES (%s::macaddr, %s::inet, %s, %s)
+            """, (mac, ip, timestamp, status == 'known'))
+
+            # Handle device based on its status
+            if status == 'known':
+                # Update known device's last seen time
+                cur.execute("""
+                    UPDATE known_devices 
+                    SET last_seen = %s, last_ip = %s::inet 
+                    WHERE mac_address = %s::macaddr
+                """, (timestamp, ip, mac))
+            elif status == 'threat':
+                # Update threat device's last seen time
+                cur.execute("""
+                    UPDATE unknown_devices 
+                    SET last_seen = %s, last_ip = %s 
+                    WHERE mac_address::text = %s
+                """, (timestamp, ip, mac))
+            elif status == 'new':
+                # Update new device's last seen time
+                cur.execute("""
+                    UPDATE new_devices 
+                    SET last_seen = %s, last_ip = %s::inet
+                    WHERE mac_address = %s::macaddr
+                """, (timestamp, ip, mac))
+            else:  # unregistered
+                # Profile device
+                profiler = DeviceProfiler(mac, ip)
+                vendor = profiler.get_mac_vendor()
+                hostname = profiler.get_hostname()
+                open_ports = profiler.scan_open_ports()
+
+                notes = f"Vendor: {vendor}, Hostname: {hostname}"
+                if open_ports:
+                    notes += f", Open Ports: {', '.join(map(str, open_ports))}"
+                else:
+                    notes += ", No common ports open"
+
+                # Insert new device for review
+                cur.execute("""
+                    INSERT INTO new_devices (
+                        mac_address, first_seen, last_seen, last_ip, 
+                        reviewed, device_name, device_type, notes
+                    ) VALUES (%s::macaddr, %s, %s, %s::inet, FALSE, %s, %s, %s)
+                """, (mac, timestamp, timestamp, ip, hostname, vendor, notes))
+                
+                # Log new device discovery
+                logger.info(f"New device discovered: {hostname} ({mac} at {ip})")
+        
+        conn.commit()
+        cur.close()
+        conn.close()
             }
             
             from webui.utils.email_notifier import EmailNotifier
@@ -222,17 +404,12 @@ if __name__ == "__main__":
             from webui.models.config import Configuration
             scanning_enabled = Configuration.get_setting('scanning_enabled', 'true')
             if scanning_enabled.lower() != 'true':
-                print("ℹ️ Network scanning is disabled in configuration")
+                logger.info("Network scanning is disabled in configuration")
                 exit(0)
-                
-            # Get network info and scan
-            subnet = get_local_subnet()
-            print(f"🔍 Scanning network: {subnet}")
-            devices = scan_network(subnet)
-            print(f"✅ Found {len(devices)} devices.")
             
-            # Update database and send notifications
-            update_database(devices)
-            print("📦 Database updated.")
+            # Start network scanner
+            scanner = NetworkScanner()
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(scanner.start_monitoring())
     except Exception as e:
         print(f"❌ Error: {e}")
