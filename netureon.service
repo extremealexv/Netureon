@@ -10,7 +10,6 @@ Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH
 ExecStart=/home/orangepi/Netureon/.venv/bin/python main.py
 Restart=always
 RestartSec=30
-StartLimitIntervalSec=300
 StartLimitBurst=3
 
 [Install]
