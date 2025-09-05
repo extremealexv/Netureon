@@ -168,9 +168,9 @@ class NetworkScanner:
                     """, (
                         ip, 
                         now,
-                        profile.get('hostname', old_hostname),
-                        profile.get('vendor', old_vendor),
-                        profile.get('open_ports', []),
+                        profile['hostname'] if 'hostname' in profile else old_hostname,
+                        profile['vendor'] if 'vendor' in profile else old_vendor,
+                        profile['open_ports'] if 'open_ports' in profile else [],
                         device_id
                     ))
                     
@@ -191,9 +191,9 @@ class NetworkScanner:
                         ip,
                         now,
                         now,
-                        profile.get('hostname', 'Unknown'),
-                        profile.get('vendor', 'Unknown'),
-                        profile.get('open_ports', [])
+                        profile['hostname'] if 'hostname' in profile else 'Unknown',
+                        profile['vendor'] if 'vendor' in profile else 'Unknown',
+                        profile['open_ports'] if 'open_ports' in profile else []
                     ))
                     
                     # Send notifications for new device

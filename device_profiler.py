@@ -50,4 +50,10 @@ class DeviceProfiler:
         vendor = self.get_mac_vendor()
         hostname = self.get_hostname()
         open_ports = self.scan_open_ports()
-        return (self.mac_address, self.ip_address, vendor, hostname, open_ports)
+        return {
+            'mac_address': self.mac_address,
+            'ip_address': self.ip_address,
+            'vendor': vendor,
+            'hostname': hostname,
+            'open_ports': open_ports
+        }
