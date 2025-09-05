@@ -12,12 +12,34 @@ echo "Installation path: $INSTALL_PATH"
 systemctl stop netureon.service netureon-alerts.service netureon_web.service netureon_scan.service netureon_scan.timer
 
 # Fix virtual environment if needed
+# Create/update virtual environment
+echo "Setting up Python environment..."
+cd "$INSTALL_PATH" || exit 1
+
+# Create venv if it doesn't exist
 if [ ! -d "$INSTALL_PATH/.venv" ]; then
     echo "Creating virtual environment..."
-    cd "$INSTALL_PATH" || exit 1
-    # Create venv as the real user, not as root
     sudo -u "$REAL_USER" python3 -m venv .venv
-    sudo -u "$REAL_USER" .venv/bin/pip install -r requirements.txt
+fi
+
+# Always update pip and install/upgrade packages
+echo "Installing required packages..."
+sudo -u "$REAL_USER" .venv/bin/pip install --upgrade pip
+sudo -u "$REAL_USER" .venv/bin/pip install --upgrade psycopg2-binary python-dotenv flask requests psutil netifaces setuptools
+sudo -u "$REAL_USER" .venv/bin/pip install -r requirements.txt
+
+# Verify critical packages
+echo "Verifying installation..."
+if ! sudo -u "$REAL_USER" .venv/bin/python -c "import psycopg2, dotenv" 2>/dev/null; then
+    echo "❌ Failed to install required packages. Please check pip output above."
+    exit 1
+fi
+
+# Copy environment file if it doesn't exist
+if [ ! -f "$INSTALL_PATH/.env" ] && [ -f "$INSTALL_PATH/.env.example" ]; then
+    echo "Creating .env file from example..."
+    sudo -u "$REAL_USER" cp "$INSTALL_PATH/.env.example" "$INSTALL_PATH/.env"
+    echo "⚠️ Please edit $INSTALL_PATH/.env to set your configuration"
 fi
 
 # Fix permissions on service files
