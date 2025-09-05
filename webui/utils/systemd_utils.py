@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 def update_scan_timer(interval_seconds):
-    """Update the netguard_scan timer interval.
+    """Update the netureon_scan timer interval.
     
     Args:
         interval_seconds (int): The new interval in seconds
