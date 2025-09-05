@@ -9,12 +9,22 @@ User=orangepi
 WorkingDirectory=/home/orangepi/Netureon
 Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH
 ExecStart=/home/orangepi/Netureon/.venv/bin/python net_scan.py
+ExecStop=/bin/kill -TERM $MAINPID
 RemainAfterExit=no
+Restart=always
+RestartSec=30
+
 # Set resource limits to prevent runaway scans
 CPUQuota=50%
 MemoryMax=512M
-# Add timeout to prevent stuck scans
-TimeoutSec=300
+
+# Increase timeouts
+TimeoutStartSec=120
+TimeoutStopSec=60
+
+# Add proper kill mode
+KillMode=mixed
+KillSignal=SIGTERM
 # Basic error handling
 Restart=on-failure
 RestartSec=30s

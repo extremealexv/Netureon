@@ -71,6 +71,11 @@ def get_local_subnet():
 
     raise RuntimeError("No active LAN interface with IPv4 found.")
 
+import signal
+import fcntl
+import sys
+import os.path
+
 class NetworkScanner:
     def __init__(self):
         """Initialize the network scanner."""
@@ -78,6 +83,37 @@ class NetworkScanner:
         self.app = create_app()
         self.email_notifier = EmailNotifier()
         self.telegram_notifier = TelegramNotifier()
+        self.lock_file = '/tmp/netureon_scanner.lock'
+        signal.signal(signal.SIGTERM, self.handle_shutdown)
+        signal.signal(signal.SIGINT, self.handle_shutdown)
+        
+    def acquire_lock(self):
+        """Try to acquire the lock file to prevent multiple instances."""
+        try:
+            self.lock_fd = open(self.lock_file, 'w')
+            fcntl.lockf(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.lock_fd.write(str(os.getpid()))
+            self.lock_fd.flush()
+            return True
+        except IOError:
+            logger.error("Another instance is already running")
+            return False
+            
+    def release_lock(self):
+        """Release the lock file."""
+        try:
+            if hasattr(self, 'lock_fd'):
+                fcntl.lockf(self.lock_fd, fcntl.LOCK_UN)
+                self.lock_fd.close()
+                if os.path.exists(self.lock_file):
+                    os.unlink(self.lock_file)
+        except Exception as e:
+            logger.error(f"Error releasing lock: {e}")
+            
+    def handle_shutdown(self, signum, frame):
+        """Handle shutdown signals gracefully."""
+        logger.info("Received shutdown signal, cleaning up...")
+        self.running = False
         
     def start_monitoring(self):
         """Start the network monitoring loop."""
@@ -279,16 +315,25 @@ class NetworkScanner:
                 conn.close()
 
 if __name__ == "__main__":
+    scanner = NetworkScanner()
     try:
+        # Check for other instances
+        if not scanner.acquire_lock():
+            logger.error("Another instance is already running. Exiting.")
+            sys.exit(1)
+            
         # Banner
         print("🛡️ Netureon", __version__)
         print("✨ Network monitoring and security management system")
         
         # Initialize and start scanner
-        scanner = NetworkScanner()
         scanner.start_monitoring()
     except KeyboardInterrupt:
         print("\nShutting down...")
     except Exception as e:
         logger.error(f"Fatal error: {str(e)}")
         raise
+    finally:
+        # Clean up
+        scanner.release_lock()
+        logger.info("Scanner shutdown complete")
