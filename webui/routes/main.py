@@ -27,11 +27,14 @@ def main_page():
                k.notes, 
                k.last_seen, 
                k.last_ip::text,
-               EXISTS(
-                   SELECT 1 FROM discovery_log d 
-                   WHERE d.mac_address::macaddr = k.mac_address::macaddr 
-                   AND d.timestamp > NOW() - INTERVAL '1 hour'
-               ) as is_active
+               CASE 
+                   WHEN k.last_seen > NOW() - INTERVAL '5 minutes' THEN TRUE
+                   ELSE EXISTS(
+                       SELECT 1 FROM discovery_log d 
+                       WHERE d.mac_address::macaddr = k.mac_address::macaddr 
+                       AND d.timestamp > NOW() - INTERVAL '5 minutes'
+                   )
+               END as is_active
         FROM known_devices k
         ORDER BY k.last_seen DESC NULLS LAST
     """)
