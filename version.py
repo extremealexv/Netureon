@@ -1,4 +1,4 @@
-"""NetGuard version information."""
+"""Netureon version information."""
 
 __version__ = "1.3.1"
 __author__ = "Alexander Vasilyev"

@@ -1,6 +1,6 @@
-# 🛡️ NetGuard v1.3.1
+# 🛡️ Netureon v1.3.1
 
-NetGuard is a comprehensive network monitoring and security solution designed to help system administrators maintain visibility and control over their local networks. Built with Python, Flask, and PostgreSQL, it provides real-time device detection, automated profiling, and security alerts.
+Netureon is a comprehensive network monitoring and security solution designed to help system administrators maintain visibility and control over their local networks. Built with Python, Flask, and PostgreSQL, it provides real-time device detection, automated profiling, and security alerts.
 
 ## ✨ Key Features
 

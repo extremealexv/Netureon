@@ -1,5 +1,5 @@
 [Unit]
-Description=NetGuard Network Scanner Service
+Description=Netureon Network Scanner Service
 After=network.target postgresql.service
 Wants=netguard_scan.timer
 

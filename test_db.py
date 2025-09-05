@@ -21,7 +21,7 @@ def test_postgres_connection(host, port, dbname, user, password):
 # 🔧 Replace these with your actual credentials
 host = "192.168.1.60"
 port = 5432
-dbname = "netguard"
+dbname = "netureon"
 user = "postgres"
 password = "N#hbv4c2ff"
 
