@@ -84,6 +84,7 @@ def get_local_subnet():
 class NetworkScanner:
     def __init__(self):
         """Initialize the network scanner."""
+        self.profiler = DeviceProfiler()
         self.running = False
         self.email_notifier = EmailNotifier()
         self.telegram_notifier = TelegramNotifier()
@@ -207,7 +208,7 @@ class NetworkScanner:
                     """, (timestamp, ip, mac))
                 else:  # unregistered
                     # Profile device
-                    profiler = DeviceProfiler(mac_address=mac, ip_address=ip)
+                    profiler = DeviceProfiler(mac, ip)
                     vendor = profiler.get_mac_vendor()
                     hostname = profiler.get_hostname()
                     open_ports = profiler.scan_open_ports()

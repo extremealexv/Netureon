@@ -1,8 +1,8 @@
 # main.py
 
 """
-NetGuard: Main entry point for network security tools.
-Version 1.2.1
+Netureon: Main entry point for network security tools.
+Version 1.3.1
 """
 
 import logging
@@ -18,7 +18,7 @@ def check_version():
     if sys.version_info < (3, 8):
         logging.error("Python 3.8 or higher is required")
         sys.exit(1)
-    logging.info(f"NetGuard version {__version__}")
+    logging.info(f"Netureon version {__version__}")
     return True
 
 def main():
