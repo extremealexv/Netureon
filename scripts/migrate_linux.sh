@@ -81,8 +81,16 @@ done
 status "Backing up database..."
 BACKUP_DIR="/var/backups/netureon_migration"
 mkdir -p "$BACKUP_DIR"
-if su - postgres -c "pg_dump $OLD_DB > $BACKUP_DIR/${OLD_DB}_backup_$(date +%Y%m%d).sql"; then
-    success "Database backed up to $BACKUP_DIR/${OLD_DB}_backup_$(date +%Y%m%d).sql"
+chown postgres:postgres "$BACKUP_DIR"
+
+# Load database credentials from .env
+source "$OLD_DIR/.env"
+
+# Create backup
+BACKUP_FILE="$BACKUP_DIR/${OLD_DB}_backup_$(date +%Y%m%d).sql"
+if PGPASSWORD="$DB_PASSWORD" su - postgres -c "pg_dump -h $DB_HOST -U $DB_USER $OLD_DB > $BACKUP_FILE"; then
+    chown "$USER:$USER" "$BACKUP_FILE"
+    success "Database backed up to $BACKUP_FILE"
 else
     error "Database backup failed"
 fi
@@ -120,15 +128,12 @@ if [ -f "$BACKUP_DIR/.env.backup" ]; then
     sed -i "s/DB_NAME=$OLD_DB/DB_NAME=$NEW_DB/" "$NEW_DIR/.env"
 fi
 
-# Create new database
-status "Creating new database..."
-su - postgres -c "createdb $NEW_DB"
-if [ $? -eq 0 ]; then
-    # Restore data to new database
-    su - postgres -c "psql $NEW_DB < $BACKUP_DIR/${OLD_DB}_backup_$(date +%Y%m%d).sql"
-    success "Database migrated to $NEW_DB"
+# Since we're keeping the same database, we just need to verify connection
+status "Verifying database connection..."
+if PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -U "$DB_USER" -d "$OLD_DB" -c "SELECT 1" > /dev/null 2>&1; then
+    success "Database connection verified"
 else
-    error "Failed to create new database"
+    error "Database connection failed"
 fi
 
 # Setup new installation
