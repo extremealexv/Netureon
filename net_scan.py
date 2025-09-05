@@ -180,8 +180,25 @@ class NetworkScanner:
                         device_id
                     ))
                     
+                    # Log the discovery for activity tracking
+                    cur.execute("""
+                        INSERT INTO discovery_log (
+                            mac_address,
+                            ip_address,
+                            timestamp,
+                            hostname,
+                            vendor
+                        ) VALUES (%s, %s, %s, %s, %s)
+                    """, (
+                        mac,
+                        ip,
+                        now,
+                        profile['hostname'] if 'hostname' in profile else old_hostname,
+                        profile['vendor'] if 'vendor' in profile else old_vendor
+                    ))
+                    
                 else:
-                    # Insert new device
+                    # Insert new device into devices and new_devices tables
                     cur.execute("""
                         INSERT INTO devices (
                             mac_address, 
@@ -192,6 +209,7 @@ class NetworkScanner:
                             vendor,
                             open_ports
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
                     """, (
                         mac,
                         ip,
@@ -200,6 +218,31 @@ class NetworkScanner:
                         profile['hostname'] if 'hostname' in profile else 'Unknown',
                         profile['vendor'] if 'vendor' in profile else 'Unknown',
                         profile['open_ports'] if 'open_ports' in profile else []
+                    ))
+                    
+                    device_id = cur.fetchone()[0]
+                    
+                    # Add to new_devices for review
+                    cur.execute("""
+                        INSERT INTO new_devices (
+                            device_name,
+                            mac_address,
+                            device_type,
+                            last_seen,
+                            last_ip,
+                            notes,
+                            first_seen,
+                            reviewed
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        profile['hostname'] if 'hostname' in profile else 'Unknown',
+                        mac,
+                        'unknown',
+                        now,
+                        ip,
+                        'Automatically detected by network scanner',
+                        now,
+                        False
                     ))
                     
                     # Send notifications for new device
