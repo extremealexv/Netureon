@@ -1,14 +1,14 @@
 [Unit]
 Description=Netureon Network Scanner Service
 After=network.target postgresql.service
-Wants=netguard_scan.timer
+Wants=netureon_scan.timer
 
 [Service]
 Type=oneshot
 User=%i
-WorkingDirectory=%h/NetGuard
-Environment=PATH=%h/NetGuard/venv/bin:$PATH
-ExecStart=%h/NetGuard/venv/bin/python net_scan.py
+WorkingDirectory=%h/Netureon
+Environment=PATH=%h/Netureon/.venv/bin:$PATH
+ExecStart=%h/Netureon/.venv/bin/python net_scan.py
 RemainAfterExit=no
 # Set resource limits to prevent runaway scans
 CPUQuota=50%
