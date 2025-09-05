@@ -240,7 +240,7 @@ The uninstall scripts will:
 4. Guide you through complete removal
 
 ## �🔒 Security
-For security issues, please email security@netguard.local instead of using the issue tracker.
+For security issues, please email aleksandr@vasilyev.tech instead of using the issue tracker.
 
 ---
 Made with ❤️ by Alexander Vasilyev
