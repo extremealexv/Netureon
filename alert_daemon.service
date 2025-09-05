@@ -1,5 +1,5 @@
 [Unit]
-Description=NetGuard Alert Daemon
+Description=Netureon Alert Daemon
 After=network.target postgresql.service
 
 [Service]

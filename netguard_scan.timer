@@ -1,9 +1,0 @@
-[Unit]
-Description=NetGuard Network Scanner Timer
-
-[Timer]
-OnBootSec=60
-OnUnitActiveSec=300s
-
-[Install]
-WantedBy=timers.target

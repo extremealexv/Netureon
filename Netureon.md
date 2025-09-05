@@ -1,6 +1,6 @@
 # 📘 NetGuard Technical Documentation
-**Version:** 1.2.1  
-**Last Updated:** August 31, 2025  
+**Version:** 1.3.1  
+**Last Updated:** September 4, 2025  
 **Author:** Alexander Vasilyev
 
 ---
@@ -459,19 +459,72 @@ FLASK_PORT=5000
 - Application logs: `/var/log/netguard/app.log`
 - Scanner logs: `/var/log/netguard/scanner.log`
 - Alert logs: `/var/log/netguard/alerts.log`
+- Web interface logs: `/var/log/netguard/web.log`
+
+### Utility Scripts
+1. **Backup Script** (`backup.sh`/`backup.ps1`)
+   - Daily database backups
+   - Configuration backups
+   - 30-day retention policy
+   - Automated cleanup
+   
+2. **Health Check Script** (`health_check.sh`/`health_check.ps1`)
+   - Service status monitoring
+   - Database connectivity check
+   - Web interface accessibility
+   - Disk space monitoring
+   - Log file management
+
+### Monitoring Tools
+1. **System Dashboard**
+   - Real-time service status
+   - Resource utilization
+   - Database statistics
+   - Network scanning status
+
+2. **Health Checks**
+   - Database connections
+   - Service status monitoring
+   - Network scanner operation
+   - Alert system functionality
+   - Web interface availability
+   - Resource utilization
+
+3. **Performance Monitoring**
+   - Scan completion times
+   - Database query performance
+   - Web interface response times
+   - Alert processing delays
 
 ### Backup Strategy
-1. Daily database backups:
+1. Automated Daily Backups:
    ```bash
-   pg_dump netguard > /backup/netguard_$(date +%Y%m%d).sql
-   ```
-2. Configuration backup:
-   ```bash
-   cp /opt/netguard/.env /backup/env_$(date +%Y%m%d)
+   # Linux
+   ./backup.sh
+   
+   # Windows
+   .\backup.ps1
    ```
 
-### Health Checks
-- Database connections
-- Scanner operation
-- Alert system responsiveness
-- Web interface availability  
+2. Manual Backup Commands:
+   ```bash
+   # Database backup
+   pg_dump netguard > /backup/netguard_$(date +%Y%m%d).sql
+   
+   # Configuration backup
+   cp .env /backup/env_$(date +%Y%m%d)
+   ```
+
+### Health Check Commands
+```bash
+# Linux
+./health_check.sh
+
+# Windows
+.\health_check.ps1
+
+# Manual checks
+systemctl status netguard_web
+systemctl status alert_daemon
+systemctl status netguard_scan.timer
+```  
