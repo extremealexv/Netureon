@@ -7,7 +7,51 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Function to print status messages
+# Function to # Install new services
+status "Installing service files..."
+
+# Map of old to new service files
+declare -A service_files=(
+    ["netureon.service"]="main service"
+    ["netureon-alerts.service"]="alert daemon"
+    ["netureon_web.service"]="web interface"
+    ["netureon_scan.service"]="network scanner"
+    ["netureon_scan.timer"]="scanner timer"
+)
+
+for service_file in "${!service_files[@]}"; do
+    if [ -f "$NEW_DIR/$service_file" ]; then
+        # Replace placeholders in service file
+        sed "s|%i|$USER|g; s|%h|/home/$USER|g" \
+            "$NEW_DIR/$service_file" > "/etc/systemd/system/$service_file"
+        chmod 644 "/etc/systemd/system/$service_file"
+        success "Installed $service_file (${service_files[$service_file]})"
+    else
+        warning "Service file $service_file not found"
+    fi
+done
+
+# Reload systemd and start services
+status "Reloading systemd and starting services..."
+systemctl daemon-reload
+
+services=(
+    "netureon"
+    "netureon-alerts"
+    "netureon_web"
+    "netureon_scan"
+    "netureon_scan.timer"
+)
+
+for service in "${services[@]}"; do
+    systemctl enable "$service"
+    systemctl start "$service"
+    if systemctl is-active --quiet "$service"; then
+        success "$service started"
+    else
+        warning "Failed to start $service"
+    fi
+doneges
 status() {
     echo -e "${CYAN}ℹ️ $1${NC}"
 }
