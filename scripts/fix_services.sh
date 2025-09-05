@@ -1,12 +1,32 @@
 #!/bin/bash
 
-# Get the actual user's home d# Function to run pip commands
-pip_install() {
-    sudo -u "$REAL_USER" bash -c "
-        source .venv/bin/activate
-        pip $*
-    "
-}
+# Ensure we're running as root
+if [ "$EUID" -ne 0 ]; then
+    echo "Please run as root (use sudo)"
+    exit 1
+fi
+
+# Get the actual user who invoked sudo
+if [ -z "$SUDO_USER" ]; then
+    echo "This script must be run with sudo"
+    exit 1
+fi
+
+REAL_USER="$SUDO_USER"
+USER_HOME=$(eval echo ~"$REAL_USER")
+INSTALL_PATH="$USER_HOME/Netureon"
+
+echo "Installing for user: $REAL_USER"
+echo "Installation path: $INSTALL_PATH"
+
+# Verify the installation path exists
+if [ ! -d "$INSTALL_PATH" ]; then
+    echo "❌ Installation directory $INSTALL_PATH does not exist"
+    exit 1
+fi
+
+# Change to installation directory
+cd "$INSTALL_PATH" || exit 1
 
 # Install/upgrade packages
 echo "Installing required packages..."
