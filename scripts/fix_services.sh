@@ -17,32 +17,53 @@ echo "Setting up Python environment..."
 cd "$INSTALL_PATH" || exit 1
 
 # Remove existing venv if it's broken
-if [ -d "$INSTALL_PATH/.venv" ] && ! [ -f "$INSTALL_PATH/.venv/bin/python" ]; then
-    echo "Removing broken virtual environment..."
+if [ -d ".venv" ]; then
+    echo "Removing existing virtual environment..."
     sudo -u "$REAL_USER" rm -rf .venv
 fi
 
-# Create venv if it doesn't exist
-if [ ! -d "$INSTALL_PATH/.venv" ]; then
-    echo "Creating virtual environment..."
-    sudo -u "$REAL_USER" python3 -m venv .venv
-    if [ ! -f "$INSTALL_PATH/.venv/bin/python" ]; then
-        echo "❌ Failed to create virtual environment"
-        exit 1
-    fi
+# Ensure python3-venv is installed
+if ! dpkg -l | grep -q python3-venv; then
+    echo "Installing python3-venv..."
+    apt-get update && apt-get install -y python3-venv
 fi
 
-# Function to run pip commands as the real user
+# Create fresh virtual environment
+echo "Creating virtual environment..."
+sudo -u "$REAL_USER" python3 -m venv .venv
+if [ ! -f ".venv/bin/python" ]; then
+    echo "❌ Failed to create virtual environment"
+    exit 1
+fi
+
+# Function to run pip commands as the real user with full path
 pip_install() {
-    sudo -u "$REAL_USER" bash -c "source .venv/bin/activate && pip $*"
+    sudo -u "$REAL_USER" bash -c "
+        export PATH=\"$INSTALL_PATH/.venv/bin:\$PATH\"
+        export VIRTUAL_ENV=\"$INSTALL_PATH/.venv\"
+        export PYTHONPATH=\"$INSTALL_PATH\"
+        $INSTALL_PATH/.venv/bin/pip $*
+    "
 }
 
 # Install/upgrade packages
 echo "Installing required packages..."
 pip_install install --upgrade pip
 pip_install install --upgrade setuptools wheel
-pip_install install --upgrade psycopg2-binary python-dotenv flask requests psutil netifaces
+pip_install install --upgrade "psycopg2-binary python-dotenv flask requests psutil netifaces"
 pip_install install -r requirements.txt
+
+# Verify installation
+echo "Verifying Python packages..."
+if ! sudo -u "$REAL_USER" bash -c "
+    export PATH=\"$INSTALL_PATH/.venv/bin:\$PATH\"
+    export VIRTUAL_ENV=\"$INSTALL_PATH/.venv\"
+    export PYTHONPATH=\"$INSTALL_PATH\"
+    $INSTALL_PATH/.venv/bin/python -c 'import psycopg2, dotenv'
+"; then
+    echo "❌ Failed to verify package installation"
+    exit 1
+fi
 
 # Verify critical packages
 echo "Verifying installation..."
