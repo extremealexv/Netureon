@@ -1,25 +1,21 @@
-{% extends "    <!-- Netureon Version -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <h4>🛡️ Netureon Information</h4>.html" %}
+{% extends "main.html" %}
 
 {% block content %}
 <div class="container mt-4">
     <h2>🖥️ System Information</h2>
-    
+
     {% if error %}
-    <div class="alert alert-danger">
+    <div class="alert alert-danger" role="alert">
         {{ error }}
     </div>
     {% else %}
-    
-    <!-- NetGuard Version -->
+    <!-- Netureon Version -->
     <div class="card mb-4">
         <div class="card-header">
-            <h4>🛡️ NetGuard Information</h4>
+            <h4>🛡️ Netureon Information</h4>
         </div>
         <div class="card-body">
-            <p><strong>Version:</strong> {{ info.netguard_version }}</p>
+            <p><strong>Version:</strong> {{ info.version }}</p>
         </div>
     </div>
 

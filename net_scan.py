@@ -1,4 +1,4 @@
-"""Network scanning module for NetGuard.
+"""Network scanning module for Netureon.
 
 This module provides network discovery and device tracking functionality using
 ARP scanning and device profiling capabilities.
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
-logger.info(f"NetGuard Scanner v{__version__} initialized")
+logger.info(f"Netureon Scanner v{__version__} initialized")
 
 # PostgreSQL connection settings
 DB_CONFIG = {
