@@ -197,8 +197,8 @@ class NetworkScanner:
                     ))
                     
                     # Send notifications for new device
-                    device_info = f"New device detected:\nMAC: {mac}\nIP: {ip}\nHostname: {profile.get('hostname', 'Unknown')}\nVendor: {profile.get('vendor', 'Unknown')}"
-                    self.email_notifier.send_notification("New Device Detected", device_info)
+                    device_info = f"New device detected:\nMAC: {mac}\nIP: {ip}\nHostname: {profile['hostname'] if 'hostname' in profile else 'Unknown'}\nVendor: {profile['vendor'] if 'vendor' in profile else 'Unknown'}"
+                    self.email_notifier.notify("New Device Detected", device_info)
                     self.telegram_notifier.send_message(device_info)
             
             conn.commit()
