@@ -216,7 +216,30 @@ For support, please:
 2. Search for existing issues
 3. Open a new issue if needed
 
-## 🔒 Security
+## � Maintenance
+
+### Uninstalling
+To remove NetGuard and all its components:
+
+#### Windows
+```powershell
+# Run as Administrator
+.\scripts\uninstall.ps1
+```
+
+#### Linux
+```bash
+# Run as root or with sudo
+sudo ./scripts/uninstall.sh
+```
+
+The uninstall scripts will:
+1. Stop and remove all services
+2. Clean up program data and logs
+3. Remove service configurations
+4. Guide you through complete removal
+
+## �🔒 Security
 For security issues, please email security@netguard.local instead of using the issue tracker.
 
 ---
