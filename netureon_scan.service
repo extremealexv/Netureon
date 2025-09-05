@@ -4,7 +4,7 @@ After=network.target postgresql.service
 Wants=netureon_scan.timer
 
 [Service]
-Type=oneshot
+Type=simple
 User=orangepi
 WorkingDirectory=/home/orangepi/Netureon
 Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH

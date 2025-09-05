@@ -105,23 +105,28 @@ class NetworkScanner:
             list: List of tuples containing (ip, mac) pairs
         """
         try:
+            logger.info(f"Starting network scan on subnet {subnet}")
+            
             # Create ARP request packet
             arp = ARP(pdst=subnet)
             ether = Ether(dst="ff:ff:ff:ff:ff:ff")
             packet = ether/arp
 
             # Send packet and get responses
+            logger.debug("Sending ARP packets...")
             result = srp(packet, timeout=3, verbose=0)[0]
             
             # Process responses
             devices = []
             for sent, received in result:
                 devices.append((received.psrc, received.hwsrc))
-                
+                logger.debug(f"Discovered device: {received.psrc} ({received.hwsrc})")
+            
+            logger.info(f"Scan complete. Found {len(devices)} devices")
             return devices
             
         except Exception as e:
-            logger.error(f"Error scanning network: {str(e)}")
+            logger.error(f"Error scanning network: {str(e)}", exc_info=True)
             return []
             
     def _update_database(self, devices):
@@ -232,3 +237,18 @@ class NetworkScanner:
                 cur.close()
             if conn:
                 conn.close()
+
+if __name__ == "__main__":
+    try:
+        # Banner
+        print("🛡️ Netureon", __version__)
+        print("✨ Network monitoring and security management system")
+        
+        # Initialize and start scanner
+        scanner = NetworkScanner()
+        scanner.start_monitoring()
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    except Exception as e:
+        logger.error(f"Fatal error: {str(e)}")
+        raise
