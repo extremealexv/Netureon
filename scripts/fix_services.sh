@@ -24,13 +24,16 @@ fi
 chmod 644 /etc/systemd/system/netureon*.service
 chmod 644 /etc/systemd/system/netureon*.timer
 
-# Fix service file paths if needed
+# Fix service file paths and user
 for service in /etc/systemd/system/netureon*.service; do
-    # Update any hardcoded paths to use %h
-    sed -i "s|/home/orangepi/Netureon|%h/Netureon|g" "$service"
-    sed -i "s|/home/orangepi/NetGuard|%h/Netureon|g" "$service"
+    # Replace %h and %i with actual values
+    sed -i "s|User=%i|User=$REAL_USER|g" "$service"
+    sed -i "s|%h/Netureon|$INSTALL_PATH|g" "$service"
+    sed -i "s|/home/[^/]*/NetGuard|$INSTALL_PATH|g" "$service"
     # Update venv to .venv
     sed -i "s|/venv/|/.venv/|g" "$service"
+    # Fix any remaining root paths
+    sed -i "s|/root/Netureon|$INSTALL_PATH|g" "$service"
 done
 
 # Reload systemd to pick up changes

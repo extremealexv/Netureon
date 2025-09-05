@@ -4,10 +4,10 @@ After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=%i
-WorkingDirectory=%h/Netureon
-Environment=PATH=%h/Netureon/.venv/bin:$PATH
-ExecStart=%h/Netureon/.venv/bin/python alert_daemon.py
+User=orangepi
+WorkingDirectory=/home/orangepi/Netureon
+Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH
+ExecStart=/home/orangepi/Netureon/.venv/bin/python alert_daemon.py
 Restart=always
 RestartSec=30
 StartLimitIntervalSec=300
