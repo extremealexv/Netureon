@@ -75,6 +75,7 @@ class NetworkScanner:
     def __init__(self):
         """Initialize the network scanner."""
         self.running = False
+        self.app = create_app()
         self.email_notifier = EmailNotifier()
         self.telegram_notifier = TelegramNotifier()
         
@@ -199,11 +200,23 @@ class NetworkScanner:
                     # Send notifications for new device
                     device_info = f"New device detected:\nMAC: {mac}\nIP: {ip}\nHostname: {profile['hostname'] if 'hostname' in profile else 'Unknown'}\nVendor: {profile['vendor'] if 'vendor' in profile else 'Unknown'}"
                     
-                    # Email notification
-                    try:
-                        self.email_notifier.notify("New Device Detected", device_info)
-                    except Exception as e:
-                        logger.error(f"Failed to send email notification: {e}")
+                    # Send notifications within Flask app context
+                    with self.app.app_context():
+                        try:
+                            self.email_notifier.notify("New Device Detected", device_info)
+                        except Exception as e:
+                            logger.error(f"Failed to send email notification: {e}")
+                        
+                        try:
+                            asyncio.run(self.telegram_notifier.notify_new_device_detected({
+                                'mac': mac,
+                                'ip': ip,
+                                'hostname': profile['hostname'] if 'hostname' in profile else 'Unknown',
+                                'vendor': profile['vendor'] if 'vendor' in profile else 'Unknown',
+                                'first_seen': now.strftime('%Y-%m-%d %H:%M:%S')
+                            }))
+                        except Exception as e:
+                            logger.error(f"Failed to send telegram notification: {e}")
                     
                     # Log the new device for the alert daemon to handle
                     logger.info(f"New device discovered: {device_info}")
