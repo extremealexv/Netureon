@@ -23,6 +23,7 @@ class TelegramNotifier:
         self.bot_token = None
         self.chat_id = None
         self._init_done = False
+        self._event_loop = None
         
     def _check_configuration(self):
         """Check if Telegram notifications are properly configured."""

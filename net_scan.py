@@ -198,8 +198,15 @@ class NetworkScanner:
                     
                     # Send notifications for new device
                     device_info = f"New device detected:\nMAC: {mac}\nIP: {ip}\nHostname: {profile['hostname'] if 'hostname' in profile else 'Unknown'}\nVendor: {profile['vendor'] if 'vendor' in profile else 'Unknown'}"
-                    self.email_notifier.notify("New Device Detected", device_info)
-                    self.telegram_notifier.send_message(device_info)
+                    
+                    # Email notification
+                    try:
+                        self.email_notifier.notify("New Device Detected", device_info)
+                    except Exception as e:
+                        logger.error(f"Failed to send email notification: {e}")
+                    
+                    # Log the new device for the alert daemon to handle
+                    logger.info(f"New device discovered: {device_info}")
             
             conn.commit()
             
