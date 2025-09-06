@@ -91,6 +91,7 @@ class NetworkScanner:
         self.telegram_notifier = TelegramNotifier()
         self.lock_file = '/tmp/netureon_scanner.lock'
         self.notifier = sdnotify.SystemdNotifier()
+        self.last_watchdog = 0
         
         # Setup signal handlers
         signal.signal(signal.SIGTERM, self.handle_shutdown)
@@ -98,6 +99,14 @@ class NetworkScanner:
         
         # Notify systemd we're starting up
         self.notifier.notify("STATUS=Initializing...")
+        
+    def ping_watchdog(self):
+        """Send watchdog keep-alive signal to systemd."""
+        current_time = time.time()
+        # Only ping every 30 seconds to avoid excessive notifications
+        if current_time - self.last_watchdog >= 30:
+            self.notifier.notify("WATCHDOG=1")
+            self.last_watchdog = current_time
         
     def acquire_lock(self):
         """Try to acquire the lock file to prevent multiple instances."""
@@ -292,22 +301,39 @@ class NetworkScanner:
             # Then enter the monitoring loop
             while self.running:
                 try:
-                    time.sleep(int(os.getenv('SCAN_INTERVAL', 300)))  # Default 5 minutes
+                    # Split the sleep interval into smaller chunks to ping watchdog regularly
+                    interval = int(os.getenv('SCAN_INTERVAL', 300))
+                    chunks = interval // 30
+                    remainder = interval % 30
+                    
+                    for _ in range(chunks):
+                        if not self.running:
+                            break
+                        time.sleep(30)
+                        self.ping_watchdog()
+                    
+                    if remainder and self.running:
+                        time.sleep(remainder)
+                        self.ping_watchdog()
+                    
                     if not self.running:
                         break
+                        
                     subnet = get_local_subnet()
                     devices = self.scan_network(subnet)
                     self._update_database(devices)
+                    self.ping_watchdog()
                 except Exception as e:
                     logger.error(f"Error in main loop: {str(e)}")
                     if self.running:
-                        time.sleep(60)  # Wait before retrying
+                        time.sleep(30)  # Shorter retry interval
+                        self.ping_watchdog()
         finally:
             self.release_lock()
                 
     def scan_network(self, subnet):
         """
-        Scan the network using ARP requests.
+        Scan the network using multiple methods for better device discovery.
         
         Args:
             subnet (str): The subnet to scan in CIDR notation
@@ -315,29 +341,50 @@ class NetworkScanner:
         Returns:
             list: List of tuples containing (ip, mac) pairs
         """
+        # Notify watchdog that we're starting a scan
+        self.ping_watchdog()
         try:
             if not self.running:
                 return []
                 
             logger.info(f"Starting network scan on subnet {subnet}")
+            devices = set()  # Use set to avoid duplicates
             
-            # Create ARP request packet
-            arp = ARP(pdst=subnet)
-            ether = Ether(dst="ff:ff:ff:ff:ff:ff")
-            packet = ether/arp
+            # Method 1: ARP Scan with multiple attempts
+            for attempt in range(3):
+                # Create ARP request packet
+                arp = ARP(pdst=subnet)
+                ether = Ether(dst="ff:ff:ff:ff:ff:ff")
+                packet = ether/arp
 
-            # Send packet and get responses with shorter timeout
-            logger.debug("Sending ARP packets...")
-            result = srp(packet, timeout=2, verbose=0, inter=0.1)[0]  # Faster packet sending
-            
-            # Process responses
-            devices = []
-            for sent, received in result:
-                devices.append((received.psrc, received.hwsrc))
-                logger.debug(f"Discovered device: {received.psrc} ({received.hwsrc})")
-            
-            logger.info(f"Scan complete. Found {len(devices)} devices")
-            return devices
+                # Send packets with different timing
+                logger.debug(f"Sending ARP packets (attempt {attempt + 1})...")
+                result = srp(packet, timeout=3, verbose=0, inter=0.05, retry=2, multi=True)[0]
+                
+                # Process responses
+                for sent, received in result:
+                    devices.add((received.psrc, received.hwsrc))
+                    
+                # Short delay between attempts
+                if attempt < 2:  # Don't sleep after last attempt
+                    time.sleep(1)
+                    
+            # Method 2: Use system ARP cache
+            try:
+                with os.popen('ip neigh show') as f:
+                    for line in f:
+                        parts = line.strip().split()
+                        if len(parts) >= 4 and parts[2].lower() == 'lladdr':
+                            ip, mac = parts[0], parts[3]
+                            if ip and mac and mac != '00:00:00:00:00:00':
+                                devices.add((ip, mac))
+            except Exception as e:
+                logger.warning(f"Failed to read system ARP cache: {e}")
+                
+            # Convert set back to list
+            device_list = list(devices)
+            logger.info(f"Scan complete. Found {len(device_list)} devices")
+            return device_list
             
         except Exception as e:
             logger.error(f"Error scanning network: {str(e)}", exc_info=True)

@@ -34,12 +34,25 @@ class DeviceProfiler:
         if not self.ip_address:
             return "IP address not provided"
         open_ports = []
-        for port in ports:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.settimeout(1)
-                result = sock.connect_ex((self.ip_address, port))
-                if result == 0:
-                    open_ports.append(port)
+        # Common IoT and home device ports
+        iot_ports = [80, 443, 8080, 8443, 1883, 8883]  # HTTP(S), MQTT
+        # Network device ports
+        network_ports = [22, 23, 161, 162]  # SSH, Telnet, SNMP
+        # Streaming device ports
+        media_ports = [554, 1935, 5353]  # RTSP, RTMP, mDNS
+        
+        # Combine all ports, remove duplicates
+        all_ports = list(set(ports + iot_ports + network_ports + media_ports))
+        
+        for port in all_ports:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.settimeout(0.5)  # Faster timeout
+                    result = sock.connect_ex((self.ip_address, port))
+                    if result == 0:
+                        open_ports.append(port)
+            except Exception:
+                continue
         return open_ports
 
     def profile(self):
