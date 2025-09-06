@@ -397,7 +397,7 @@ Made with 🛡️ by Alexander Vasilyev
 |------------------------|----------------|--------------|--------------------------------|
 | `netguard_web.service` | `on-failure`   | PostgreSQL   | Flask web interface           |
 | `netguard_scan.timer`  | N/A            | None         | 30-second scan scheduler      |
-| `alert_daemon.service` | `always`       | PostgreSQL   | Alert notification service    |
+| `netureon-alerts.service` | `always`       | PostgreSQL   | Alert notification service    |
 
 ### Service Configuration
 ```ini

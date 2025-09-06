@@ -1,7 +1,7 @@
 """Database connection and ORM setup."""
 
 from flask import current_app
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from flask_sqlalchemy import SQLAlchemy
 
 # Create the SQLAlchemy instance
@@ -34,20 +34,22 @@ class Database:
             params = {}
             
         try:
-            # Convert named parameters from :name to %(name)s format
+            # Use SQLAlchemy's bindparams for proper parameter binding
+            stmt = text(query)
             if params:
-                for key in params:
-                    if f":{key}" in query:
-                        query = query.replace(f":{key}", f"%({key})s")
+                for key, value in params.items():
+                    stmt = stmt.bindparams(bindparam(key))
                     
-            result = db.session.execute(text(query), params)
+            result = db.session.execute(stmt, params)
             if fetch:
-                return result.fetchall()
+                rows = result.fetchall()
+                db.session.commit()
+                return rows
             db.session.commit()
             return result.rowcount if result.rowcount > -1 else None
-        except:
+        except Exception as e:
             db.session.rollback()
-            raise
+            raise e
 
     def _execute_query_single_impl(self, query, params=None):
         """Execute a query and fetch a single row.
@@ -86,13 +88,12 @@ class Database:
                     # Convert tuple parameters to a dict format
                     params = {f"param_{i}": val for i, val in enumerate(params)}
                     
-                # Convert named parameters if needed
-                if isinstance(params, dict):
-                    for key in params:
-                        if f":{key}" in query:
-                            query = query.replace(f":{key}", f"%({key})s")
-                            
-                result = db.session.execute(text(query), params)
+                # Use SQLAlchemy's text() with proper parameter binding
+                stmt = text(query)
+                if params:
+                    for key, value in params.items():
+                        stmt = stmt.bindparams(bindparam(key))
+                result = db.session.execute(stmt, params)
                 results.append(result)
                 
             db.session.commit()

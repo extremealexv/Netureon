@@ -8,7 +8,8 @@ User=orangepi
 Group=orangepi
 WorkingDirectory=/home/orangepi/Netureon
 Environment=PYTHONPATH=/home/orangepi/Netureon
-ExecStart=/home/orangepi/Netureon/.venv/bin/python alert_daemon.py
+Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH
+ExecStart=/usr/bin/python3 alert_daemon.py
 Restart=always
 RestartSec=60
 

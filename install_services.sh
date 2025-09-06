@@ -90,7 +90,7 @@ install_service() {
 }
 
 # Install systemd services
-install_service "alert_daemon.service" "Alert Daemon"
+install_service "netureon-alerts.service" "Alert Daemon"
 install_service "netureon_web.service" "Web Interface"
 install_service "netureon_scan.service" "Network Scanner"
 install_service "netureon_scan.timer" "Network Scanner Timer"
@@ -108,13 +108,13 @@ start_service() {
 }
 
 # Enable and start services
-start_service "alert_daemon.service"
+start_service "netureon-alerts.service"
 start_service "netureon_web.service"
 start_service "netureon_scan.timer"
 
 status "✨ Installation complete!"
 status "Service status commands:"
-echo "  sudo systemctl status alert_daemon.service"
+echo "  sudo systemctl status netureon-alerts.service"
 echo "  sudo systemctl status netureon_web.service"
 echo "  sudo systemctl status netureon_scan.service"
 echo "  sudo systemctl status netureon_scan.timer"
@@ -123,13 +123,13 @@ echo "  sudo systemctl status netureon_scan.timer"
 status "Installation complete! Services are now running."
 echo
 echo "Service Status Commands:"
-echo "  systemctl status alert_daemon.service"
+echo "  systemctl status netureon-alerts.service"
 echo "  systemctl status netguard_web.service"
 echo "  systemctl status netguard_scan.service"
 echo "  systemctl status netguard_scan.timer"
 echo
 echo "View Logs:"
-echo "  journalctl -u alert_daemon.service -f"
+echo "  journalctl -u netureon-alerts.service -f"
 echo "  journalctl -u netguard_web.service -f"
 echo "  journalctl -u netguard_scan.service -f"
 echo
