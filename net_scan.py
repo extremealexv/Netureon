@@ -109,13 +109,11 @@ class NetworkScanner:
         if notify_socket:
             logger.info("Running under systemd, will send notifications")
             try:
-                if not self.notifier.notify("READY=1"):
-                    logger.error("Failed to notify systemd of readiness")
-                    sys.exit(1)
+                self.notifier.notify("READY=1")
                 logger.info("Successfully notified systemd of readiness")
             except Exception as e:
-                logger.error(f"Error notifying systemd: {e}")
-                sys.exit(1)
+                logger.warning(f"Systemd notification warning (non-fatal): {e}")
+                self.notifier = None  # Disable notifications if they fail
         else:
             logger.info("Not running under systemd, notifications disabled")
             self.notifier = None  # Disable notifications if not under systemd
@@ -128,12 +126,11 @@ class NetworkScanner:
         current_time = time.time()
         if current_time - self.last_watchdog >= self.watchdog_interval:
             try:
-                if not self.notifier.notify("WATCHDOG=1"):
-                    logger.warning("Failed to send watchdog notification")
+                self.notifier.notify("WATCHDOG=1")
                 self.last_watchdog = current_time
                 logger.debug("Watchdog notification sent")
             except Exception as e:
-                logger.error(f"Watchdog notification error: {e}")
+                logger.warning(f"Watchdog notification warning (non-fatal): {e}")
                 # Don't exit on watchdog failures, just log them
     
     def acquire_lock(self):
