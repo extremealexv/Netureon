@@ -4,7 +4,7 @@ After=network.target postgresql.service
 Wants=netureon_scan.timer
 
 [Service]
-Type=simple
+Type=notify
 User=orangepi
 WorkingDirectory=/home/orangepi/Netureon
 Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH
@@ -13,9 +13,10 @@ ExecStop=/bin/kill -TERM $MAINPID
 RemainAfterExit=no
 Restart=always
 RestartSec=30
-TimeoutStartSec=90
+TimeoutStartSec=120
 TimeoutStopSec=30
 WatchdogSec=60
+NotifyAccess=all
 
 # Set resource limits to prevent runaway scans
 CPUQuota=50%

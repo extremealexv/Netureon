@@ -153,10 +153,20 @@ class NetworkScanner:
             self.notifier.notify("STATUS=Failed to start - lock exists")
             sys.exit(1)
             
-        # Notify systemd we're ready
-        self.notifier.notify("READY=1")
+        self.running = True
+        # Start with initial status
         self.notifier.notify("STATUS=Starting network monitoring...")
         logger.info("Starting network monitoring...")
+        
+        # Start the Flask app in a separate thread
+        from threading import Thread
+        webapp_thread = Thread(target=self.app.run, kwargs={'host': '0.0.0.0', 'port': 5000})
+        webapp_thread.daemon = True
+        webapp_thread.start()
+        
+        # Notify systemd we're ready
+        self.notifier.notify("READY=1")
+        self.notifier.notify("STATUS=Running")
             
         try:
             self.running = True
@@ -381,11 +391,6 @@ class NetworkScanner:
 if __name__ == "__main__":
     scanner = NetworkScanner()
     try:
-        # Check for other instances
-        if not scanner.acquire_lock():
-            logger.error("Another instance is already running. Exiting.")
-            sys.exit(1)
-            
         # Banner
         print("🛡️ Netureon", __version__)
         print("✨ Network monitoring and security management system")
@@ -393,11 +398,8 @@ if __name__ == "__main__":
         # Initialize and start scanner
         scanner.start_monitoring()
     except KeyboardInterrupt:
-        print("\nShutting down...")
+        scanner.handle_shutdown(signal.SIGINT, None)
     except Exception as e:
         logger.error(f"Fatal error: {str(e)}")
+        scanner.handle_shutdown(signal.SIGTERM, None)
         raise
-    finally:
-        # Clean up
-        scanner.release_lock()
-        logger.info("Scanner shutdown complete")
