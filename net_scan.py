@@ -30,12 +30,16 @@ import sys
 import os.path
 
 # Configure logging
+log_dir = os.path.expanduser('~/Netureon/logs')
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, 'netureon.log')
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('/var/log/netureon.log')
+        logging.FileHandler(log_file)
     ]
 )
 logger = logging.getLogger(__name__)
