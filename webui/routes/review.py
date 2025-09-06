@@ -2,6 +2,7 @@ import asyncio
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from ..models.database import Database
 from ..utils.telegram_notifier import TelegramNotifier
+from device_profiler import DeviceProfiler
 
 review = Blueprint('review', __name__)
 notifier = TelegramNotifier()
@@ -54,13 +55,20 @@ def handle_approve_action(selected_devices):
             info = result.fetchone()
             if info:
                 mac = selected_devices[i]
+                # Profile the device to get current information
+                profiler = DeviceProfiler(info[1], info[4])  # mac_address, last_ip
+                profile = profiler.profile()
+                
                 device_infos[mac] = {
                     'device_name': info[0],
                     'mac_address': info[1],
                     'device_type': info[2],
                     'last_seen': info[3],
                     'last_ip': info[4],
-                    'notes': info[5]
+                    'notes': info[5],
+                    'hostname': profile['hostname'],
+                    'vendor': profile['vendor'],
+                    'open_ports': ", ".join(map(str, profile['open_ports'])) if profile['open_ports'] else "None"
                 }
         
         # Prepare all database operations
@@ -68,18 +76,26 @@ def handle_approve_action(selected_devices):
         for mac in selected_devices:
             if mac in device_infos:
                 # First check if the device exists in known_devices
+                device_info = device_infos[mac]
                 all_queries.extend([
                     ("""
                         INSERT INTO known_devices 
-                        (device_name, mac_address, device_type, last_seen, last_ip, notes)
-                        SELECT device_name, mac_address, device_type, last_seen, last_ip, notes
+                        (device_name, mac_address, device_type, last_seen, last_ip, notes, hostname, vendor, open_ports)
+                        SELECT 
+                            device_name, mac_address, device_type, last_seen, last_ip, notes,
+                            :hostname, :vendor, :open_ports
                         FROM new_devices
                         WHERE mac_address = :mac
                         AND NOT EXISTS (
                             SELECT 1 FROM known_devices 
                             WHERE mac_address = :mac
                         )
-                    """, {"mac": mac}),
+                    """, {
+                        "mac": mac,
+                        "hostname": device_info['hostname'],
+                        "vendor": device_info['vendor'],
+                        "open_ports": device_info['open_ports']
+                    }),
                     ("""
                         UPDATE known_devices 
                         SET last_seen = n.last_seen,
@@ -90,7 +106,10 @@ def handle_approve_action(selected_devices):
                                 WHEN n.notes IS NOT NULL AND known_devices.notes IS NOT NULL 
                                 THEN known_devices.notes || E'\n' || n.notes
                                 ELSE COALESCE(n.notes, known_devices.notes)
-                            END
+                            END,
+                            hostname = :hostname,
+                            vendor = :vendor,
+                            open_ports = :open_ports
                         FROM new_devices n
                         WHERE known_devices.mac_address = :mac
                         AND n.mac_address = :mac
