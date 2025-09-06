@@ -22,3 +22,8 @@ class Config:
     TELEGRAM_ENABLED = os.getenv('TELEGRAM_ENABLED', 'false').lower() == 'true'
     TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
     TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+    
+    # Web server configuration
+    WEB_HOST = os.getenv('WEB_HOST', '0.0.0.0')
+    WEB_PORT = int(os.getenv('WEB_PORT', '5000'))
+    WEB_DEBUG = os.getenv('WEB_DEBUG', 'false').lower() == 'true'
