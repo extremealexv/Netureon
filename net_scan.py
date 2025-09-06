@@ -19,6 +19,10 @@ from version import __version__
 from webui.app import create_app
 from webui.utils.email_notifier import EmailNotifier
 from webui.utils.telegram_notifier import TelegramNotifier
+from webui.config.config import Config
+import socket
+import psutil
+import subprocess
 
 # Configure logging
 logging.basicConfig(
@@ -146,8 +150,112 @@ class NetworkScanner:
         # Exit immediately but cleanly
         sys.exit(0)
         
+    def cleanup_existing_process(self):
+        """Find and cleanup any existing Netureon processes."""
+        try:
+            # First check for our lock file
+            if os.path.exists(self.lock_file):
+                try:
+                    with open(self.lock_file, 'r') as f:
+                        old_pid = int(f.read().strip())
+                        if psutil.pid_exists(old_pid):
+                            logger.info(f"Found existing Netureon process (PID: {old_pid})")
+                            try:
+                                # Try to terminate gracefully first
+                                old_process = psutil.Process(old_pid)
+                                old_process.terminate()
+                                old_process.wait(timeout=10)  # Wait up to 10 seconds
+                            except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+                                # If still running, force kill
+                                subprocess.run(['sudo', 'kill', '-9', str(old_pid)], 
+                                            check=False)
+                except Exception as e:
+                    logger.warning(f"Error reading lock file: {e}")
+
+            # Look for any Python processes running net_scan.py
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    cmdline = proc.info['cmdline']
+                    if cmdline and 'net_scan.py' in ' '.join(cmdline) and proc.pid != os.getpid():
+                        logger.info(f"Found another Netureon process (PID: {proc.pid})")
+                        proc.terminate()
+                        try:
+                            proc.wait(timeout=10)
+                        except psutil.TimeoutExpired:
+                            proc.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+            # Clean up the lock file
+            if os.path.exists(self.lock_file):
+                os.unlink(self.lock_file)
+                
+            # Give the system a moment to release resources
+            time.sleep(2)
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error during process cleanup: {e}")
+            return False
+
+    def check_port_in_use(self):
+        """Check if our port is in use and by what."""
+        port = Config.WEB_PORT
+        
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(('0.0.0.0', port))
+                return False
+            except socket.error:
+                for proc in psutil.process_iter(['pid', 'name', 'connections']):
+                    try:
+                        for conn in proc.connections():
+                            if conn.laddr.port == port:
+                                return proc
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+                return True
+                
+    def start_web_server(self):
+        """Start the Flask web server with proper cleanup."""
+        host = Config.WEB_HOST
+        port = Config.WEB_PORT
+        
+        # Check if port is in use
+        port_check = self.check_port_in_use()
+        if port_check:
+            if isinstance(port_check, psutil.Process):
+                logger.warning(f"Port {port} is in use by process {port_check.pid}")
+                self.cleanup_existing_process()
+            else:
+                logger.error(f"Port {port} is in use by an unknown process")
+                return False
+        
+        try:
+            from threading import Thread
+            webapp_thread = Thread(target=self.app.run, 
+                                kwargs={
+                                    'host': host,
+                                    'port': port,
+                                    'debug': Config.WEB_DEBUG,
+                                    'use_reloader': False
+                                })
+            webapp_thread.daemon = True
+            webapp_thread.start()
+            logger.info(f"Web interface started on {host}:{port}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to start web server: {e}")
+            return False
+    
     def start_monitoring(self):
         """Start the network monitoring loop."""
+        # Clean up any existing instances first
+        if not self.cleanup_existing_process():
+            logger.error("Failed to cleanup existing processes")
+            self.notifier.notify("STATUS=Failed to cleanup")
+            sys.exit(1)
+            
         if not self.acquire_lock():
             logger.error("Failed to acquire lock. Another instance may be running.")
             self.notifier.notify("STATUS=Failed to start - lock exists")
@@ -158,11 +266,12 @@ class NetworkScanner:
         self.notifier.notify("STATUS=Starting network monitoring...")
         logger.info("Starting network monitoring...")
         
-        # Start the Flask app in a separate thread
-        from threading import Thread
-        webapp_thread = Thread(target=self.app.run, kwargs={'host': '0.0.0.0', 'port': 5000})
-        webapp_thread.daemon = True
-        webapp_thread.start()
+        # Start the web server
+        if not self.start_web_server():
+            logger.error("Failed to start web interface")
+            self.notifier.notify("STATUS=Failed to start web interface")
+            self.handle_shutdown(signal.SIGTERM, None)
+            return
         
         # Notify systemd we're ready
         self.notifier.notify("READY=1")
