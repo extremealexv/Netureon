@@ -104,22 +104,37 @@ class NetworkScanner:
             logger.error(f"Database connection failed: {e}")
             sys.exit(1)
         
-        # Notify systemd we're starting up
-        logger.info("Sending READY=1 to systemd...")
-        if not self.notifier.notify("READY=1"):
-            logger.error("Failed to notify systemd of readiness")
-            sys.exit(1)
-        logger.info("Successfully notified systemd of readiness")
+        # Check if running under systemd
+        notify_socket = os.environ.get('NOTIFY_SOCKET')
+        if notify_socket:
+            logger.info("Running under systemd, will send notifications")
+            try:
+                if not self.notifier.notify("READY=1"):
+                    logger.error("Failed to notify systemd of readiness")
+                    sys.exit(1)
+                logger.info("Successfully notified systemd of readiness")
+            except Exception as e:
+                logger.error(f"Error notifying systemd: {e}")
+                sys.exit(1)
+        else:
+            logger.info("Not running under systemd, notifications disabled")
+            self.notifier = None  # Disable notifications if not under systemd
     
     def ping_watchdog(self):
         """Send watchdog keep-alive signal to systemd."""
+        if not self.notifier:  # Skip if not running under systemd
+            return
+            
         current_time = time.time()
         if current_time - self.last_watchdog >= self.watchdog_interval:
-            if not self.notifier.notify("WATCHDOG=1"):
-                logger.error("Failed to send watchdog notification")
-                self.handle_shutdown(signal.SIGTERM, None)
-            self.last_watchdog = current_time
-            logger.debug("Watchdog notification sent")
+            try:
+                if not self.notifier.notify("WATCHDOG=1"):
+                    logger.warning("Failed to send watchdog notification")
+                self.last_watchdog = current_time
+                logger.debug("Watchdog notification sent")
+            except Exception as e:
+                logger.error(f"Watchdog notification error: {e}")
+                # Don't exit on watchdog failures, just log them
     
     def acquire_lock(self):
         """Try to acquire the lock file to prevent multiple instances."""

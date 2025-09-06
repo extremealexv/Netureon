@@ -9,6 +9,8 @@ User=orangepi
 Group=orangepi
 WorkingDirectory=/home/orangepi/Netureon
 Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH
+Environment=NOTIFY_SOCKET=/run/systemd/notify
+Environment=PYTHONUNBUFFERED=1
 ExecStart=/home/orangepi/Netureon/.venv/bin/python3 /home/orangepi/Netureon/net_scan.py
 ExecStop=/bin/kill -TERM $MAINPID
 RemainAfterExit=no
