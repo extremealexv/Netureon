@@ -102,11 +102,18 @@ class NetworkScanner:
     def release_lock(self):
         """Release the lock file."""
         try:
-            if hasattr(self, 'lock_fd'):
-                fcntl.lockf(self.lock_fd, fcntl.LOCK_UN)
+            if hasattr(self, 'lock_fd') and not self.lock_fd.closed:
+                try:
+                    fcntl.lockf(self.lock_fd, fcntl.LOCK_UN)
+                except IOError:
+                    pass
                 self.lock_fd.close()
-                if os.path.exists(self.lock_file):
+            
+            if os.path.exists(self.lock_file):
+                try:
                     os.unlink(self.lock_file)
+                except OSError:
+                    pass
         except Exception as e:
             logger.error(f"Error releasing lock: {e}")
             
@@ -127,18 +134,37 @@ class NetworkScanner:
         
     def start_monitoring(self):
         """Start the network monitoring loop."""
-        self.running = True
-        logger.info("Starting network monitoring...")
-        
-        while self.running:
+        if not self.acquire_lock():
+            logger.error("Failed to acquire lock. Another instance may be running.")
+            sys.exit(1)
+            
+        try:
+            self.running = True
+            logger.info("Starting network monitoring...")
+            
+            # Do initial scan immediately
             try:
                 subnet = get_local_subnet()
                 devices = self.scan_network(subnet)
                 self._update_database(devices)
-                time.sleep(int(os.getenv('SCAN_INTERVAL', 300)))  # Default 5 minutes
             except Exception as e:
-                logger.error(f"Error in main loop: {str(e)}")
-                time.sleep(60)  # Wait before retrying
+                logger.error(f"Initial scan failed: {str(e)}")
+            
+            # Then enter the monitoring loop
+            while self.running:
+                try:
+                    time.sleep(int(os.getenv('SCAN_INTERVAL', 300)))  # Default 5 minutes
+                    if not self.running:
+                        break
+                    subnet = get_local_subnet()
+                    devices = self.scan_network(subnet)
+                    self._update_database(devices)
+                except Exception as e:
+                    logger.error(f"Error in main loop: {str(e)}")
+                    if self.running:
+                        time.sleep(60)  # Wait before retrying
+        finally:
+            self.release_lock()
                 
     def scan_network(self, subnet):
         """

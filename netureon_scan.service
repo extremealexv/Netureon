@@ -24,14 +24,15 @@ TimeoutStopSec=15
 TimeoutAbortSec=20
 
 # Add proper kill mode
-KillMode=mixed
+KillMode=process
 KillSignal=SIGTERM
 SendSIGKILL=yes
 
 # Basic error handling
 Restart=on-failure
-RestartSec=30s
+RestartSec=10s
 StartLimitBurst=3
+StartLimitInterval=300
 
 [Install]
 WantedBy=multi-user.target
