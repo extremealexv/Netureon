@@ -341,7 +341,6 @@ class NetworkScanner:
         Returns:
             list: List of tuples containing (ip, mac) pairs
         """
-        # Notify watchdog that we're starting a scan
         self.ping_watchdog()
         try:
             if not self.running:
@@ -350,27 +349,45 @@ class NetworkScanner:
             logger.info(f"Starting network scan on subnet {subnet}")
             devices = set()  # Use set to avoid duplicates
             
-            # Method 1: ARP Scan with multiple attempts
-            for attempt in range(3):
-                # Create ARP request packet
-                arp = ARP(pdst=subnet)
-                ether = Ether(dst="ff:ff:ff:ff:ff:ff")
-                packet = ether/arp
-
-                # Send packets with different timing
-                logger.debug(f"Sending ARP packets (attempt {attempt + 1})...")
-                result = srp(packet, timeout=3, verbose=0, inter=0.05, retry=2, multi=True)[0]
+            # Method 1: ARP Scan with multiple attempts, split into smaller chunks
+            network = ipaddress.ip_network(subnet)
+            chunk_size = 32  # Scan 32 IPs at a time
+            total_chunks = (network.num_addresses + chunk_size - 1) // chunk_size
+            
+            for attempt in range(2):  # Two complete passes
+                for chunk_idx in range(total_chunks):
+                    if not self.running:
+                        return list(devices)
+                        
+                    # Calculate chunk range
+                    start_ip = network[chunk_idx * chunk_size]
+                    end_ip = network[min((chunk_idx + 1) * chunk_size - 1, network.num_addresses - 1)]
+                    chunk_subnet = f"{start_ip}/{network.prefixlen}"
+                    
+                    # Create and send ARP packets for this chunk
+                    arp = ARP(pdst=chunk_subnet)
+                    ether = Ether(dst="ff:ff:ff:ff:ff:ff")
+                    packet = ether/arp
+                    
+                    # Send packets with optimized timing
+                    logger.debug(f"Scanning chunk {chunk_idx + 1}/{total_chunks} (attempt {attempt + 1})")
+                    result = srp(packet, timeout=1, verbose=0, inter=0.01, retry=1, multi=True)[0]
+                    
+                    # Process responses
+                    for sent, received in result:
+                        devices.add((received.psrc, received.hwsrc))
+                    
+                    # Ping watchdog after each chunk
+                    self.ping_watchdog()
                 
-                # Process responses
-                for sent, received in result:
-                    devices.add((received.psrc, received.hwsrc))
-                    
                 # Short delay between attempts
-                if attempt < 2:  # Don't sleep after last attempt
-                    time.sleep(1)
-                    
-            # Method 2: Use system ARP cache
+                if attempt < 1:  # Don't sleep after last attempt
+                    time.sleep(0.5)
+                    self.ping_watchdog()
+            
+            # Method 2: Use system ARP cache as backup
             try:
+                self.ping_watchdog()
                 with os.popen('ip neigh show') as f:
                     for line in f:
                         parts = line.strip().split()
@@ -380,11 +397,16 @@ class NetworkScanner:
                                 devices.add((ip, mac))
             except Exception as e:
                 logger.warning(f"Failed to read system ARP cache: {e}")
-                
-            # Convert set back to list
+            
+            # Final check and report
             device_list = list(devices)
             logger.info(f"Scan complete. Found {len(device_list)} devices")
+            self.ping_watchdog()
             return device_list
+            
+        except Exception as e:
+            logger.error(f"Error scanning network: {str(e)}", exc_info=True)
+            return []
             
         except Exception as e:
             logger.error(f"Error scanning network: {str(e)}", exc_info=True)
@@ -406,14 +428,24 @@ class NetworkScanner:
             conn = self._db_conn
             cur = conn.cursor()
             
-            for ip, mac in devices:
-                # Skip localhost and broadcast
-                if ip in ['127.0.0.1', '255.255.255.255'] or mac == 'ff:ff:ff:ff:ff:ff':
-                    continue
+            # Process devices in chunks to maintain watchdog
+            chunk_size = 5  # Process 5 devices at a time
+            for i in range(0, len(devices), chunk_size):
+                if not self.running:
+                    return
                     
-                # Profile the device
-                profiler = DeviceProfiler(mac, ip)
-                profile = profiler.profile()
+                chunk = devices[i:i + chunk_size]
+                for ip, mac in chunk:
+                    # Skip localhost and broadcast
+                    if ip in ['127.0.0.1', '255.255.255.255'] or mac == 'ff:ff:ff:ff:ff:ff':
+                        continue
+                        
+                    # Profile the device
+                    profiler = DeviceProfiler(mac, ip)
+                    profile = profiler.profile()
+                    
+                    # Ping watchdog after each device is profiled
+                    self.ping_watchdog()
                 
                 # Check if device exists
                 cur.execute("""
