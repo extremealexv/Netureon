@@ -10,6 +10,7 @@ from telegram.error import TelegramError
 from telegram.constants import ParseMode
 from telegram.request import HTTPXRequest
 from webui.models.config import Configuration
+from device_profiler import DeviceProfiler
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,7 @@ class TelegramNotifier:
         Args:
             device_info: Dictionary containing device information
         """
+        # Send initial notification
         message = (
             f"🔍 <b>New Device Detected on Network</b>\n\n"
             f"Name: {device_info.get('hostname') or 'Unknown'}\n"
@@ -145,9 +147,29 @@ class TelegramNotifier:
             f"IP: <code>{device_info.get('ip')}</code>\n"
             f"Vendor: {device_info.get('vendor') or 'Unknown'}\n"
             f"First Seen: {device_info.get('first_seen')}\n"
-            f"Open Ports: {device_info.get('open_ports', 'No ports scanned')}"
+            f"Scanning ports...\n"
         )
         await self.send_message(message)
+
+        # Run device profiling
+        try:
+            profiler = DeviceProfiler(device_info.get('mac'), device_info.get('ip'))
+            profile = profiler.profile()
+            
+            # Send update with port scan results
+            ports = profile.get('open_ports', [])
+            port_info = "Open ports: " + (", ".join(map(str, ports)) if ports else "None")
+            
+            update_message = (
+                f"🔍 <b>Port Scan Results</b>\n\n"
+                f"MAC: <code>{device_info.get('mac')}</code>\n"
+                f"IP: <code>{device_info.get('ip')}</code>\n"
+                f"{port_info}"
+            )
+            await self.send_message(update_message)
+        except Exception as e:
+            logger.error(f"Error during device profiling: {e}")
+            await self.send_message(f"⚠️ Failed to scan ports: {str(e)}")
 
     async def notify_device_approved(self, device_info: dict) -> None:
         """
@@ -156,6 +178,7 @@ class TelegramNotifier:
         Args:
             device_info: Dictionary containing device information
         """
+        # Send initial notification
         message = (
             f"✅ <b>Device Added to Known Devices</b>\n\n"
             f"Name: {device_info.get('device_name') or 'Unknown'}\n"
@@ -163,9 +186,30 @@ class TelegramNotifier:
             f"IP: <code>{device_info.get('last_ip')}</code>\n"
             f"Type: {device_info.get('device_type') or 'Unknown'}\n"
             f"Added: {device_info.get('last_seen')}\n"
-            f"Notes: {device_info.get('notes') or 'No notes'}"
+            f"Notes: {device_info.get('notes') or 'No notes'}\n"
+            f"Scanning ports..."
         )
         await self.send_message(message)
+        
+        # Run device profiling
+        try:
+            profiler = DeviceProfiler(device_info.get('mac_address'), device_info.get('last_ip'))
+            profile = profiler.profile()
+            
+            # Send update with port scan results
+            ports = profile.get('open_ports', [])
+            port_info = "Open ports: " + (", ".join(map(str, ports)) if ports else "None")
+            
+            update_message = (
+                f"✅ <b>Port Scan Results</b>\n\n"
+                f"MAC: <code>{device_info.get('mac_address')}</code>\n"
+                f"IP: <code>{device_info.get('last_ip')}</code>\n"
+                f"{port_info}"
+            )
+            await self.send_message(update_message)
+        except Exception as e:
+            logger.error(f"Error during device profiling: {e}")
+            await self.send_message(f"⚠️ Failed to scan ports: {str(e)}")
 
     async def notify_device_blocked(self, device_info: dict) -> None:
         """
