@@ -33,17 +33,21 @@ class Database:
         if params is None:
             params = {}
             
-        # Convert named parameters from :name to %(name)s format
-        if params:
-            for key in params:
-                if f":{key}" in query:
-                    query = query.replace(f":{key}", f"%({key})s")
+        try:
+            # Convert named parameters from :name to %(name)s format
+            if params:
+                for key in params:
+                    if f":{key}" in query:
+                        query = query.replace(f":{key}", f"%({key})s")
                     
-        result = db.session.execute(text(query), params)
-        if fetch:
-            return result.fetchall()
-        db.session.commit()
-        return result.rowcount if result.rowcount > -1 else None
+            result = db.session.execute(text(query), params)
+            if fetch:
+                return result.fetchall()
+            db.session.commit()
+            return result.rowcount if result.rowcount > -1 else None
+        except:
+            db.session.rollback()
+            raise
 
     def _execute_query_single_impl(self, query, params=None):
         """Execute a query and fetch a single row.
@@ -69,15 +73,31 @@ class Database:
                 where params can be a dict or tuple
         """
         self._ensure_context()
+        
+        # Start a new transaction
+        db.session.begin()
+        
         try:
+            results = []
             for query, params in queries:
                 if params is None:
                     params = {}
                 elif isinstance(params, tuple):
                     # Convert tuple parameters to a dict format
                     params = {f"param_{i}": val for i, val in enumerate(params)}
-                db.session.execute(text(query), params)
+                    
+                # Convert named parameters if needed
+                if isinstance(params, dict):
+                    for key in params:
+                        if f":{key}" in query:
+                            query = query.replace(f":{key}", f"%({key})s")
+                            
+                result = db.session.execute(text(query), params)
+                results.append(result)
+                
             db.session.commit()
+            return results
+            
         except Exception as e:
             db.session.rollback()
             raise e
