@@ -22,7 +22,7 @@ def check_version():
     return True
 
 def main():
-    """Main entry point for Netureon."""
+    """Main entry point for Netureon CLI."""
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,
@@ -33,19 +33,10 @@ def main():
     check_version()
     
     # Display startup message
-    print(f"🛡️ Netureon {__version__} is running")
+    print(f"🛡️ Netureon {__version__}")
     print("✨ Network monitoring and security management system")
-    
-    try:
-        # Import scanner after logging is configured
-        from net_scan import NetworkScanner
-        scanner = NetworkScanner()
-        scanner.start_monitoring()
-    except KeyboardInterrupt:
-        logging.info("Shutting down Netureon...")
-    except Exception as e:
-        logging.error(f"Error in main loop: {e}")
-        sys.exit(1)
+    print("\nThis is the CLI entry point. For network monitoring, use:")
+    print("sudo systemctl start netureon.service")
 
 if __name__ == "__main__":
     main()
