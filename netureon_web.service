@@ -5,9 +5,9 @@ After=network.target postgresql.service
 [Service]
 Type=simple
 User=orangepi
-WorkingDirectory=%h/Netureon
-Environment=PYTHONPATH=%h/Netureon
-ExecStart=%h/Netureon/.venv/bin/python webui/app.py
+WorkingDirectory=/home/orangepi/Netureon
+Environment=PYTHONPATH=/home/orangepi/Netureon
+ExecStart=/home/orangepi/Netureon/.venv/bin/python webui/app.py
 Restart=always
 RestartSec=1
 

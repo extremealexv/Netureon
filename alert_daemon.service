@@ -6,9 +6,9 @@ After=network.target postgresql.service
 Type=simple
 User=orangepi
 Group=orangepi
-WorkingDirectory=/home/orangepi/NetGuard
-Environment=PYTHONPATH=/home/orangepi/NetGuard
-ExecStart=/home/orangepi/NetGuard/.venv/bin/python alert_daemon.py
+WorkingDirectory=/home/orangepi/Netureon
+Environment=PYTHONPATH=/home/orangepi/Netureon
+ExecStart=/home/orangepi/Netureon/.venv/bin/python alert_daemon.py
 Restart=always
 RestartSec=60
 
