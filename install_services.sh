@@ -34,20 +34,38 @@ if [ -z "$REAL_USER" ]; then
     REAL_USER=${SUDO_USER:-${USER}}
 fi
 
-# Create config directory if it doesn't exist
-mkdir -p /etc/netguard
+# Create necessary directories
+INSTALL_DIR="/home/${REAL_USER}/Netureon"
+VENV_DIR="${INSTALL_DIR}/.venv"
+CONFIG_DIR="/etc/netguard"
+
+status "Creating directories..."
+mkdir -p "$INSTALL_DIR"
+mkdir -p "$CONFIG_DIR"
 
 # Create environment file for service configuration
-cat > /etc/netguard/netguard.conf << EOL
+cat > "${CONFIG_DIR}/netguard.conf" << EOL
 # Netureon Service Configuration
 NETUREON_USER=${REAL_USER}
-NETUREON_HOME=${SCRIPT_DIR}
+NETUREON_HOME=${INSTALL_DIR}
 NETUREON_SCAN_INTERVAL=900  # Scan interval in seconds (default: 15 minutes)
 NETUREON_MAX_MEMORY=512M    # Maximum memory for scan service
 NETUREON_CPU_QUOTA=50%      # CPU quota for scan service
 EOL
 
-# Source the configuration
+# Set up Python virtual environment
+status "Setting up Python virtual environment..."
+python3 -m venv "$VENV_DIR"
+source "$VENV_DIR/bin/activate"
+
+# Install Python dependencies
+status "Installing Python dependencies..."
+pip install -r "${SCRIPT_DIR}/requirements.txt"
+
+# Copy files to installation directory
+status "Installing Netureon files..."
+cp -r "${SCRIPT_DIR}"/* "$INSTALL_DIR/"
+chown -R "${REAL_USER}:${REAL_USER}" "$INSTALL_DIR"
 source /etc/netguard/netguard.conf
 
 # Setup Python environment
@@ -62,26 +80,20 @@ install_service() {
     status "Installing $description..."
     
     # Replace variables in service file
-    sed "s|%i|$NETGUARD_USER|g; s|%h/NetGuard|$NETGUARD_HOME|g" \
-        "$SCRIPT_DIR/$service" > "/etc/systemd/system/$service" || \
+    sed "s|/home/orangepi/NetGuard|${INSTALL_DIR}|g; s|/home/orangepi/Netureon|${INSTALL_DIR}|g" \
+        "${SCRIPT_DIR}/${service}" > "/etc/systemd/system/${service}" || \
         error "Failed to install $service"
         
     # Set correct permissions
-    chmod 644 "/etc/systemd/system/$service" || \
+    chmod 644 "/etc/systemd/system/${service}" || \
         error "Failed to set permissions for $service"
 }
 
 # Install systemd services
 install_service "alert_daemon.service" "Alert Daemon"
-install_service "netguard_web.service" "Web Interface"
-install_service "netguard_scan.service" "Network Scanner"
-install_service "netguard_scan.timer" "Network Scanner Timer"
-
-# Update timer configuration with custom interval if specified
-if [ -n "$NETGUARD_SCAN_INTERVAL" ]; then
-    sed -i "s|OnUnitActiveSec=.*|OnUnitActiveSec=${NETGUARD_SCAN_INTERVAL}s|" \
-        /etc/systemd/system/netguard_scan.timer
-fi
+install_service "netureon_web.service" "Web Interface"
+install_service "netureon_scan.service" "Network Scanner"
+install_service "netureon_scan.timer" "Network Scanner Timer"
 
 # Reload systemd
 status "Reloading systemd configuration..."
@@ -97,9 +109,15 @@ start_service() {
 
 # Enable and start services
 start_service "alert_daemon.service"
-start_service "netguard_web.service"
-start_service "netguard_scan.service"
-start_service "netguard_scan.timer"
+start_service "netureon_web.service"
+start_service "netureon_scan.timer"
+
+status "✨ Installation complete!"
+status "Service status commands:"
+echo "  sudo systemctl status alert_daemon.service"
+echo "  sudo systemctl status netureon_web.service"
+echo "  sudo systemctl status netureon_scan.service"
+echo "  sudo systemctl status netureon_scan.timer"
 
 # Print status information
 status "Installation complete! Services are now running."
