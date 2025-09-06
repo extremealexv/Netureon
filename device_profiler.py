@@ -2,18 +2,14 @@ import socket
 import requests
 import subprocess
 from datetime import datetime
-from webui.app import create_app
-from webui.utils.telegram_notifier import TelegramNotifier
-from webui.utils.email_notifier import EmailNotifier
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DeviceProfiler:
     def __init__(self, mac_address, ip_address=None):
         self.mac_address = mac_address
         self.ip_address = ip_address
-        self.telegram_notifier = TelegramNotifier()
-        self.email_notifier = EmailNotifier()
-        # Create Flask app instance
-        self.app = create_app()
 
     def get_mac_vendor(self):
         url = f"https://api.macvendors.com/{self.mac_address}"
