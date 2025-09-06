@@ -34,16 +34,26 @@ def handle_approve_action(selected_devices):
         return
         
     try:
-        # First, gather all device info in a single transaction
+        # First, gather all device info
         device_infos = {}
-        for mac in selected_devices:
-            info = Database.execute_query_single("""
-                SELECT device_name, mac_address, device_type, last_seen, last_ip, notes, first_seen
-                FROM new_devices
-                WHERE mac_address = :mac
-            """, {"mac": mac})
-            
+        # Create a list of queries to fetch device info
+        info_queries = [(
+            """
+            SELECT device_name, mac_address, device_type, last_seen, last_ip, notes, first_seen
+            FROM new_devices
+            WHERE mac_address = :mac
+            """,
+            {"mac": mac}
+        ) for mac in selected_devices]
+        
+        # Execute all info queries in a single transaction
+        results = Database.execute_transaction(info_queries)
+        
+        # Process the results
+        for i, result in enumerate(results):
+            info = result.fetchone()
             if info:
+                mac = selected_devices[i]
                 device_infos[mac] = {
                     'device_name': info[0],
                     'mac_address': info[1],
