@@ -40,7 +40,7 @@ def handle_approve_action(selected_devices):
             info = Database.execute_query_single("""
                 SELECT device_name, mac_address, device_type, last_seen, last_ip, notes, first_seen
                 FROM new_devices
-                WHERE mac_address = %(mac)s
+                WHERE mac_address = :mac
             """, {"mac": mac})
             
             if info:
@@ -63,11 +63,11 @@ def handle_approve_action(selected_devices):
                         (device_name, mac_address, device_type, last_seen, last_ip, notes)
                         SELECT device_name, mac_address, device_type, last_seen, last_ip, notes
                         FROM new_devices
-                        WHERE mac_address = %(mac)s
+                        WHERE mac_address = :mac
                     """, {"mac": mac}),
                     ("""
                         DELETE FROM new_devices 
-                        WHERE mac_address = %(mac)s
+                        WHERE mac_address = :mac
                     """, {"mac": mac})
                 ])
         

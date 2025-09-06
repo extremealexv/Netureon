@@ -5,7 +5,9 @@ After=network.target postgresql.service
 [Service]
 Type=simple
 User=orangepi
+Group=orangepi
 WorkingDirectory=/home/orangepi/Netureon
+Environment=PYTHONPATH=/home/orangepi/Netureon
 Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH
 ExecStart=/home/orangepi/Netureon/.venv/bin/python alert_daemon.py
 Restart=always
