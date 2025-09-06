@@ -13,8 +13,20 @@ from datetime import datetime
 import ipaddress
 import os
 import logging
-from dotenv import load_dotenv
-from device_profiler import DeviceProfiler
+from dotenv import load_dote            # Method 2: Use system ARP cache
+            try:
+                self.ping_watchdog()
+                with os.popen('arp -n') as f:
+                    for line in f:
+                        if '(' in line or 'Address' in line:  # Skip header and invalid entries
+                            continue
+                        parts = line.strip().split()
+                        if len(parts) >= 3:
+                            ip, mac = parts[0], parts[2]
+                            if ip and mac and mac != '00:00:00:00:00:00':
+                                devices.add((ip, mac))
+            except Exception as e:
+                logger.warning(f"Failed to read system ARP cache: {e}")ice_profiler import DeviceProfiler
 from version import __version__
 from webui.app import create_app
 from webui.utils.email_notifier import EmailNotifier
@@ -428,6 +440,13 @@ class NetworkScanner:
             conn = self._db_conn
             cur = conn.cursor()
             
+            # Get all current active devices first
+            cur.execute("SELECT mac_address, status FROM known_devices WHERE status = 'active'")
+            active_devices = {row[0]: row[1] for row in cur.fetchall()}
+            
+            # Current scan timestamp
+            now = datetime.now()
+            
             # Process devices in chunks to maintain watchdog
             chunk_size = 5  # Process 5 devices at a time
             for i in range(0, len(devices), chunk_size):
@@ -444,8 +463,62 @@ class NetworkScanner:
                     profiler = DeviceProfiler(mac, ip)
                     profile = profiler.profile()
                     
+                    # Check if device exists in known_devices
+                    cur.execute("""
+                        SELECT mac_address FROM known_devices 
+                        WHERE mac_address = %s
+                    """, (mac,))
+                    device_exists = cur.fetchone()
+                    
+                    if device_exists:
+                        # Update existing device
+                        cur.execute("""
+                            UPDATE known_devices 
+                            SET last_ip = %s,
+                                last_seen = %s,
+                                status = 'active',
+                                open_ports = %s,
+                                hostname = %s,
+                                vendor = %s
+                            WHERE mac_address = %s
+                        """, (ip, now, profile.get('open_ports', []), 
+                             profile.get('hostname', 'Unknown'),
+                             profile.get('vendor', 'Unknown'), mac))
+                    else:
+                        # Insert into new_devices for review
+                        cur.execute("""
+                            INSERT INTO new_devices 
+                            (mac_address, last_ip, first_seen, last_seen, 
+                             hostname, vendor, open_ports, reviewed)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, false)
+                            ON CONFLICT (mac_address) DO UPDATE 
+                            SET last_ip = EXCLUDED.last_ip,
+                                last_seen = EXCLUDED.last_seen,
+                                hostname = EXCLUDED.hostname,
+                                vendor = EXCLUDED.vendor,
+                                open_ports = EXCLUDED.open_ports
+                        """, (mac, ip, now, now, 
+                             profile.get('hostname', 'Unknown'),
+                             profile.get('vendor', 'Unknown'),
+                             profile.get('open_ports', [])))
+                    
+                    # Remove from active devices list since we've seen it
+                    if mac in active_devices:
+                        del active_devices[mac]
+                    
                     # Ping watchdog after each device is profiled
                     self.ping_watchdog()
+                    
+            # Mark remaining previously-active devices as inactive
+            for mac in active_devices:
+                cur.execute("""
+                    UPDATE known_devices 
+                    SET status = 'inactive'
+                    WHERE mac_address = %s
+                """, (mac,))
+                
+            # Commit all changes
+            conn.commit()
                 
                 # Check if device exists
                 cur.execute("""

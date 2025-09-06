@@ -21,9 +21,12 @@ def review_page():
         else:
             flash('Please select at least one device', 'warning')
 
-    new_devices = Database.execute_query("""
-        SELECT device_name, mac_address, device_type, last_seen, last_ip, notes, reviewed
+    db = Database()
+    new_devices = db._execute_query_impl("""
+        SELECT hostname, mac_address, vendor as device_type, 
+               last_seen, last_ip, open_ports as notes, reviewed
         FROM new_devices
+        WHERE reviewed = false
         ORDER BY last_seen DESC
     """)
 
