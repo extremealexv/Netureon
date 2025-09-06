@@ -33,23 +33,16 @@ class Database:
         if params is None:
             params = {}
             
-        try:
-            # Use SQLAlchemy's bindparams for proper parameter binding
-            stmt = text(query)
-            if params:
-                for key, value in params.items():
-                    stmt = stmt.bindparams(bindparam(key))
-                    
-            result = db.session.execute(stmt, params)
-            if fetch:
-                rows = result.fetchall()
-                db.session.commit()
-                return rows
-            db.session.commit()
-            return result.rowcount if result.rowcount > -1 else None
-        except Exception as e:
-            db.session.rollback()
-            raise e
+        # Use SQLAlchemy's bindparams for proper parameter binding
+        stmt = text(query)
+        if params:
+            for key, value in params.items():
+                stmt = stmt.bindparams(bindparam(key))
+                
+        result = db.session.execute(stmt, params)
+        if fetch:
+            return result.fetchall()
+        return result.rowcount if result.rowcount > -1 else None
 
     def _execute_query_single_impl(self, query, params=None):
         """Execute a query and fetch a single row.
@@ -64,7 +57,12 @@ class Database:
         self._ensure_context()
         if params is None:
             params = {}
-        result = db.session.execute(text(query), params)
+        # Use SQLAlchemy's bindparams for proper parameter binding
+        stmt = text(query)
+        if params:
+            for key, value in params.items():
+                stmt = stmt.bindparams(bindparam(key))
+        result = db.session.execute(stmt, params)
         return result.fetchone()
 
     def _execute_transaction_impl(self, queries):
