@@ -113,7 +113,12 @@ def handle_approve_action(selected_devices):
                         FROM new_devices n
                         WHERE known_devices.mac_address = :mac
                         AND n.mac_address = :mac
-                    """, {"mac": mac}),
+                    """, {
+                        "mac": mac,
+                        "hostname": device_info['hostname'],
+                        "vendor": device_info['vendor'],
+                        "open_ports": device_info['open_ports']
+                    }),
                     ("""
                         DELETE FROM new_devices 
                         WHERE mac_address = :mac
