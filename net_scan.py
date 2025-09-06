@@ -114,6 +114,16 @@ class NetworkScanner:
         """Handle shutdown signals gracefully."""
         logger.info("Received shutdown signal, cleaning up...")
         self.running = False
+        # Close any open database connections
+        if hasattr(self, '_db_conn') and self._db_conn:
+            try:
+                self._db_conn.close()
+            except:
+                pass
+        # Release the lock file
+        self.release_lock()
+        # Exit immediately but cleanly
+        sys.exit(0)
         
     def start_monitoring(self):
         """Start the network monitoring loop."""
@@ -141,6 +151,9 @@ class NetworkScanner:
             list: List of tuples containing (ip, mac) pairs
         """
         try:
+            if not self.running:
+                return []
+                
             logger.info(f"Starting network scan on subnet {subnet}")
             
             # Create ARP request packet
@@ -148,9 +161,9 @@ class NetworkScanner:
             ether = Ether(dst="ff:ff:ff:ff:ff:ff")
             packet = ether/arp
 
-            # Send packet and get responses
+            # Send packet and get responses with shorter timeout
             logger.debug("Sending ARP packets...")
-            result = srp(packet, timeout=3, verbose=0)[0]
+            result = srp(packet, timeout=2, verbose=0, inter=0.1)[0]  # Faster packet sending
             
             # Process responses
             devices = []
@@ -172,8 +185,13 @@ class NetworkScanner:
         Args:
             devices (list): List of (ip, mac) tuples
         """
+        if not self.running:
+            return
+            
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
+            if not hasattr(self, '_db_conn') or self._db_conn.closed:
+                self._db_conn = psycopg2.connect(**DB_CONFIG)
+            conn = self._db_conn
             cur = conn.cursor()
             
             for ip, mac in devices:
