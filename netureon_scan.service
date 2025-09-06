@@ -13,6 +13,9 @@ ExecStop=/bin/kill -TERM $MAINPID
 RemainAfterExit=no
 Restart=always
 RestartSec=30
+TimeoutStartSec=90
+TimeoutStopSec=30
+WatchdogSec=60
 
 # Set resource limits to prevent runaway scans
 CPUQuota=50%

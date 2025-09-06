@@ -6,6 +6,7 @@ python-nmap==0.7.1     # Port scanning functionality
 
 # System monitoring
 psutil==5.9.5          # System and process utilities
+sdnotify==0.3.2        # Systemd notification
 
 # Database and environment
 psycopg2-binary==2.9.9 # PostgreSQL adapter

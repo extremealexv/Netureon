@@ -75,6 +75,8 @@ import signal
 import fcntl
 import sys
 import os.path
+import socket
+import sdnotify
 
 class NetworkScanner:
     def __init__(self):
@@ -84,8 +86,14 @@ class NetworkScanner:
         self.email_notifier = EmailNotifier()
         self.telegram_notifier = TelegramNotifier()
         self.lock_file = '/tmp/netureon_scanner.lock'
+        self.notifier = sdnotify.SystemdNotifier()
+        
+        # Setup signal handlers
         signal.signal(signal.SIGTERM, self.handle_shutdown)
         signal.signal(signal.SIGINT, self.handle_shutdown)
+        
+        # Notify systemd we're starting up
+        self.notifier.notify("STATUS=Initializing...")
         
     def acquire_lock(self):
         """Try to acquire the lock file to prevent multiple instances."""
@@ -94,9 +102,12 @@ class NetworkScanner:
             fcntl.lockf(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.lock_fd.write(str(os.getpid()))
             self.lock_fd.flush()
+            # Notify systemd we've acquired the lock
+            self.notifier.notify("STATUS=Lock acquired")
             return True
         except IOError:
             logger.error("Another instance is already running")
+            self.notifier.notify("STATUS=Failed to acquire lock")
             return False
             
     def release_lock(self):
@@ -120,6 +131,7 @@ class NetworkScanner:
     def handle_shutdown(self, signum, frame):
         """Handle shutdown signals gracefully."""
         logger.info("Received shutdown signal, cleaning up...")
+        self.notifier.notify("STATUS=Shutting down...")
         self.running = False
         # Close any open database connections
         if hasattr(self, '_db_conn') and self._db_conn:
@@ -129,6 +141,8 @@ class NetworkScanner:
                 pass
         # Release the lock file
         self.release_lock()
+        logger.info("Scanner shutdown complete")
+        self.notifier.notify("STOPPING=1")
         # Exit immediately but cleanly
         sys.exit(0)
         
@@ -136,7 +150,13 @@ class NetworkScanner:
         """Start the network monitoring loop."""
         if not self.acquire_lock():
             logger.error("Failed to acquire lock. Another instance may be running.")
+            self.notifier.notify("STATUS=Failed to start - lock exists")
             sys.exit(1)
+            
+        # Notify systemd we're ready
+        self.notifier.notify("READY=1")
+        self.notifier.notify("STATUS=Starting network monitoring...")
+        logger.info("Starting network monitoring...")
             
         try:
             self.running = True
