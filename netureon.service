@@ -6,9 +6,10 @@ Conflicts=netureon_scan.service
 [Service]
 Type=notify
 User=orangepi
+Group=orangepi
 WorkingDirectory=/home/orangepi/Netureon
 Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH
-ExecStart=/home/orangepi/Netureon/.venv/bin/python net_scan.py
+ExecStart=/home/orangepi/Netureon/.venv/bin/python3 /home/orangepi/Netureon/net_scan.py
 ExecStop=/bin/kill -TERM $MAINPID
 RemainAfterExit=no
 Restart=always
