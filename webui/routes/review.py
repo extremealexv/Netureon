@@ -67,6 +67,7 @@ def handle_approve_action(selected_devices):
         all_queries = []
         for mac in selected_devices:
             if mac in device_infos:
+                # First check if the device exists in known_devices
                 all_queries.extend([
                     ("""
                         INSERT INTO known_devices 
@@ -74,6 +75,25 @@ def handle_approve_action(selected_devices):
                         SELECT device_name, mac_address, device_type, last_seen, last_ip, notes
                         FROM new_devices
                         WHERE mac_address = :mac
+                        AND NOT EXISTS (
+                            SELECT 1 FROM known_devices 
+                            WHERE mac_address = :mac
+                        )
+                    """, {"mac": mac}),
+                    ("""
+                        UPDATE known_devices 
+                        SET last_seen = n.last_seen,
+                            last_ip = n.last_ip,
+                            device_name = COALESCE(n.device_name, known_devices.device_name),
+                            device_type = COALESCE(n.device_type, known_devices.device_type),
+                            notes = CASE 
+                                WHEN n.notes IS NOT NULL AND known_devices.notes IS NOT NULL 
+                                THEN known_devices.notes || E'\n' || n.notes
+                                ELSE COALESCE(n.notes, known_devices.notes)
+                            END
+                        FROM new_devices n
+                        WHERE known_devices.mac_address = :mac
+                        AND n.mac_address = :mac
                     """, {"mac": mac}),
                     ("""
                         DELETE FROM new_devices 
