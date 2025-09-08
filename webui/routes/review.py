@@ -157,32 +157,79 @@ def handle_block_action(selected_devices):
     threat_level = request.form.get('threat_level', 'medium')
     notes = request.form.get('notes', '')
     
+    all_queries = []
+    device_infos = []
+    
+    # First, collect all device info
     for mac in selected_devices:
-        # Get device info before moving to unknown_devices
         device_info = Database.execute_query_single("""
-            SELECT mac_address, last_ip
+            SELECT mac_address, last_ip, hostname, vendor
             FROM new_devices
             WHERE mac_address = :mac
         """, {"mac": mac})
         
-        queries = [
-            ("""
-                INSERT INTO unknown_devices 
-                (mac_address, last_ip, first_seen, last_seen, threat_level, notes)
-                SELECT mac_address, last_ip, first_seen, last_seen, :threat_level, :notes
-                FROM new_devices
-                WHERE mac_address = :mac
-            """, {"mac": mac, "threat_level": threat_level, "notes": notes}),
-            ("DELETE FROM new_devices WHERE mac_address = :mac", {"mac": mac})
-        ]
-        
-        Database.execute_transaction(queries)
-        
-        # Send notification
         if device_info:
-            asyncio.run(notifier.notify_unknown_device(
-                device_info[0],  # mac_address
-                device_info[1],  # last_ip
-                threat_level
-            ))
-    flash(f'Marked {len(selected_devices)} devices as threats', 'warning')
+            device_infos.append(device_info)
+            all_queries.extend([
+                ("""
+                    INSERT INTO unknown_devices 
+                    (mac_address, last_ip, first_seen, last_seen, threat_level, notes, hostname, vendor)
+                    SELECT mac_address, last_ip, first_seen, last_seen, 
+                           :threat_level, :notes, hostname, vendor
+                    FROM new_devices
+                    WHERE mac_address = :mac
+                """, {"mac": mac, "threat_level": threat_level, "notes": notes}),
+                ("DELETE FROM new_devices WHERE mac_address = :mac", {"mac": mac})
+            ])
+    
+    # Execute all database operations in a single transaction
+    if all_queries:
+        try:
+            Database.execute_transaction(all_queries)
+            
+            # Now send notifications for all devices
+            from ..utils.email_notifier import EmailNotifier
+            email_notifier = EmailNotifier()
+            
+            for device_info in device_infos:
+                try:
+                    # Create notification data
+                    notification_data = {
+                        'mac_address': device_info[0],
+                        'ip_address': device_info[1],
+                        'hostname': device_info[2] or 'Unknown',
+                        'vendor': device_info[3] or 'Unknown',
+                        'threat_level': threat_level,
+                        'notes': notes
+                    }
+                    
+                    # Send both email and Telegram notifications
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        loop.run_until_complete(notifier.notify_unknown_device(
+                            notification_data['mac_address'],
+                            notification_data['ip_address'],
+                            notification_data['threat_level'],
+                            extra_info=notification_data
+                        ))
+                        
+                        email_notifier.send_unknown_device_notification(
+                            notification_data['mac_address'],
+                            notification_data['ip_address'],
+                            notification_data['hostname'],
+                            notification_data['vendor'],
+                            notification_data['threat_level'],
+                            notification_data['notes']
+                        )
+                    except Exception as e:
+                        current_app.logger.error(f"Failed to send notifications for {device_info[0]}: {e}")
+                    finally:
+                        loop.close()
+                        
+            flash(f'Marked {len(selected_devices)} devices as threats', 'warning')
+        except Exception as e:
+            current_app.logger.error(f"Error handling block action: {e}")
+            flash('Error processing devices. Please check the logs.', 'error')
+    else:
+        flash('No valid devices to block', 'warning')

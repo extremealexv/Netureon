@@ -74,11 +74,8 @@ class Database:
         """
         self._ensure_context()
         
-        # Start a new transaction
-        db.session.begin()
-        
+        results = []
         try:
-            results = []
             for query, params in queries:
                 if params is None:
                     params = {}
