@@ -1,0 +1,22 @@
+[Unit]
+Description=Netureon Network Scanner Service
+Documentation=https://github.com/extremealexv/Netureon
+After=network.target postgresql.service
+Conflicts=netureon.service
+
+[Service]
+Type=oneshot
+User=orangepi
+Group=orangepi
+WorkingDirectory=/home/orangepi/Netureon
+Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/orangepi/Netureon/.venv/bin/python3 /home/orangepi/Netureon/net_scan.py --scan-once
+RemainAfterExit=no
+
+# Set resource limits
+CPUQuota=50%
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
