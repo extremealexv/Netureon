@@ -192,41 +192,40 @@ def handle_block_action(selected_devices):
             email_notifier = EmailNotifier()
             
             for device_info in device_infos:
+                # Create notification data
+                notification_data = {
+                    'mac_address': device_info[0],
+                    'ip_address': device_info[1],
+                    'hostname': device_info[2] or 'Unknown',
+                    'vendor': device_info[3] or 'Unknown',
+                    'threat_level': threat_level,
+                    'notes': notes
+                }
+                
+                # Send both email and Telegram notifications
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
                 try:
-                    # Create notification data
-                    notification_data = {
-                        'mac_address': device_info[0],
-                        'ip_address': device_info[1],
-                        'hostname': device_info[2] or 'Unknown',
-                        'vendor': device_info[3] or 'Unknown',
-                        'threat_level': threat_level,
-                        'notes': notes
-                    }
+                    loop.run_until_complete(notifier.notify_unknown_device(
+                        notification_data['mac_address'],
+                        notification_data['ip_address'],
+                        notification_data['threat_level'],
+                        extra_info=notification_data
+                    ))
                     
-                    # Send both email and Telegram notifications
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        loop.run_until_complete(notifier.notify_unknown_device(
-                            notification_data['mac_address'],
-                            notification_data['ip_address'],
-                            notification_data['threat_level'],
-                            extra_info=notification_data
-                        ))
-                        
-                        email_notifier.send_unknown_device_notification(
-                            notification_data['mac_address'],
-                            notification_data['ip_address'],
-                            notification_data['hostname'],
-                            notification_data['vendor'],
-                            notification_data['threat_level'],
-                            notification_data['notes']
-                        )
-                    except Exception as e:
-                        current_app.logger.error(f"Failed to send notifications for {device_info[0]}: {e}")
-                    finally:
-                        loop.close()
-                        
+                    email_notifier.send_unknown_device_notification(
+                        notification_data['mac_address'],
+                        notification_data['ip_address'],
+                        notification_data['hostname'],
+                        notification_data['vendor'],
+                        notification_data['threat_level'],
+                        notification_data['notes']
+                    )
+                except Exception as e:
+                    current_app.logger.error(f"Failed to send notifications for {device_info[0]}: {e}")
+                finally:
+                    loop.close()
+            
             flash(f'Marked {len(selected_devices)} devices as threats', 'warning')
         except Exception as e:
             current_app.logger.error(f"Error handling block action: {e}")

@@ -441,13 +441,40 @@ class NetworkScanner:
             if 'cur' in locals():
                 cur.close()
 
-if __name__ == "__main__":
+def run_single_scan():
+    """Run a single network scan and exit."""
     scanner = NetworkScanner()
     try:
-        scanner.start_monitoring()
-    except KeyboardInterrupt:
-        scanner.handle_shutdown(signal.SIGINT, None)
+        subnet = get_local_subnet()
+        devices = scanner.scan_network(subnet)
+        scanner._update_database(devices)
     except Exception as e:
-        logger.error(f"Fatal error: {str(e)}")
-        scanner.handle_shutdown(signal.SIGTERM, None)
+        logger.error(f"Error during single scan: {e}")
         raise
+    finally:
+        if hasattr(scanner, '_db_conn') and scanner._db_conn:
+            scanner._db_conn.close()
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description='Netureon Network Scanner')
+    parser.add_argument('--scan-once', action='store_true',
+                       help='Run a single scan and exit')
+    args = parser.parse_args()
+    
+    if args.scan_once:
+        try:
+            run_single_scan()
+        except Exception as e:
+            logger.error(f"Fatal error: {str(e)}")
+            sys.exit(1)
+    else:
+        scanner = NetworkScanner()
+        try:
+            scanner.start_monitoring()
+        except KeyboardInterrupt:
+            scanner.handle_shutdown(signal.SIGINT, None)
+        except Exception as e:
+            logger.error(f"Fatal error: {str(e)}")
+            scanner.handle_shutdown(signal.SIGTERM, None)
+            raise
