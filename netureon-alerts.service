@@ -1,5 +1,5 @@
 [Unit]
-Description=Netureon Network Security Monitor
+Description=Netureon Alert Daemon
 After=network.target postgresql.service
 
 [Service]
@@ -8,6 +8,7 @@ User=orangepi
 Group=orangepi
 WorkingDirectory=/home/orangepi/Netureon
 Environment=PYTHONPATH=/home/orangepi/Netureon
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/orangepi/Netureon/.venv/bin
 ExecStart=/home/orangepi/Netureon/.venv/bin/python3 alert_daemon.py
 Restart=always
 RestartSec=10s
