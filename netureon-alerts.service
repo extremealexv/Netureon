@@ -9,6 +9,7 @@ Group=orangepi
 WorkingDirectory=/home/orangepi/Netureon
 Environment=PYTHONPATH=/home/orangepi/Netureon
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/orangepi/Netureon/.venv/bin
+Environment=NMAP_PATH=/usr/bin/nmap
 ExecStart=/home/orangepi/Netureon/.venv/bin/python3 alert_daemon.py
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
 Restart=always
