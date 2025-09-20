@@ -14,14 +14,18 @@ db = SQLAlchemy()
 class Database:
     @staticmethod
     def get_connection():
-        """Get a database connection using environment variables."""
-        return psycopg2.connect(
-            dbname=current_app.config['SQLALCHEMY_DATABASE_URI'].split('/')[-1],
-            user=current_app.config['DB_USER'],
-            password=current_app.config['DB_PASSWORD'],
-            host=current_app.config['DB_HOST'],
-            port=current_app.config['DB_PORT']
-        )
+        """Get a database connection using Flask config."""
+        try:
+            return psycopg2.connect(
+                dbname=current_app.config['DB_NAME'],
+                user=current_app.config['DB_USER'],
+                password=current_app.config['DB_PASSWORD'],
+                host=current_app.config['DB_HOST'],
+                port=current_app.config['DB_PORT']
+            )
+        except Exception as e:
+            logger.error(f"Database connection failed: {str(e)}")
+            raise
 
     @staticmethod
     def execute_transaction(queries):
