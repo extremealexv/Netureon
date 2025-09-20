@@ -7,14 +7,15 @@ import logging
 logger = logging.getLogger(__name__)
 review = Blueprint('review', __name__)
 
-@review.route('/review')
+@review.route('/review', methods=['GET', 'POST'])
 def review_page():
     """Display the review page with new devices."""
     try:
+        # Get new devices from database
         new_devices = Database.execute_query("""
             SELECT 
-                hostname as device_name,  # Changed for clarity
-                mac_address,              # Keep MAC address separate
+                hostname as device_name,
+                mac_address,
                 vendor, 
                 device_type,
                 last_ip,
