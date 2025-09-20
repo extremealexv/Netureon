@@ -136,11 +136,16 @@ class Database:
                 with conn.cursor() as cur:
                     result = None
                     for query, params in queries:
-                        # Log the query and parameters for debugging
+                        # Convert tuple parameters to proper format
+                        if isinstance(params, tuple):
+                            # If tuple has only one element, unpack it
+                            if len(params) == 1:
+                                params = params[0]
+                        
+                        # Log for debugging
                         logging.debug(f"Executing query: {query}")
                         logging.debug(f"With parameters: {params}")
                         
-                        # Execute with named parameters
                         cur.execute(query, params)
                         
                         try:
@@ -155,5 +160,5 @@ class Database:
         except Exception as e:
             if 'conn' in locals():
                 conn.rollback()
-            logging.error(f"Transaction failed: {str(e)}")
+            logging.error(f"Transaction failed: {str(e)}\nQuery: {query}\nParams: {params}")
             raise

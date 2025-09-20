@@ -154,81 +154,68 @@ def handle_approve_action(selected_devices):
     return redirect(url_for('review.review_page'))
 
 def handle_block_action(selected_devices):
-    threat_level = request.form.get('threat_level', 'medium')
-    notes = request.form.get('notes', '')
-    
-    all_queries = []
-    device_infos = []
-    
-    # First, collect all device info
-    for mac in selected_devices:
-        device_info = Database.execute_query_single("""
-            SELECT mac_address, last_ip, hostname, vendor
-            FROM new_devices
-            WHERE mac_address = :mac
-        """, {"mac": mac})
-        
-        if device_info:
-            device_infos.append(device_info)
-            all_queries.extend([
+    """Handle blocking selected devices."""
+    try:
+        blocked = 0
+        for mac in selected_devices:
+            mac_clean = mac.strip().lower()
+            
+            # First move device to unknown_devices
+            queries = [
+                # Get device info
+                ("""
+                    SELECT mac_address, last_ip, hostname, vendor 
+                    FROM new_devices 
+                    WHERE mac_address = %s::macaddr
+                """, (mac_clean,)),
+                
+                # Insert into unknown_devices
                 ("""
                     INSERT INTO unknown_devices 
-                    (mac_address, last_ip, first_seen, last_seen, threat_level, notes, hostname, vendor)
-                    SELECT mac_address, last_ip, first_seen, last_seen, 
-                           :threat_level, :notes, hostname, vendor
-                    FROM new_devices
-                    WHERE mac_address = :mac
-                """, {"mac": mac, "threat_level": threat_level, "notes": notes}),
-                ("DELETE FROM new_devices WHERE mac_address = :mac", {"mac": mac})
-            ])
-    
-    # Execute all database operations in a single transaction
-    if all_queries:
-        try:
-            Database.execute_transaction(all_queries)
-            
-            # Now send notifications for all devices
-            from ..utils.email_notifier import EmailNotifier
-            email_notifier = EmailNotifier()
-            
-            for device_info in device_infos:
-                # Create notification data
-                notification_data = {
-                    'mac_address': device_info[0],
-                    'ip_address': device_info[1],
-                    'hostname': device_info[2] or 'Unknown',
-                    'vendor': device_info[3] or 'Unknown',
-                    'threat_level': threat_level,
-                    'notes': notes
-                }
+                    (mac_address, last_ip, hostname, vendor, status)
+                    VALUES (%s::macaddr, %s::inet, %s, %s, 'blocked')
+                    ON CONFLICT (mac_address) DO UPDATE 
+                    SET last_ip = EXCLUDED.last_ip,
+                        hostname = EXCLUDED.hostname,
+                        vendor = EXCLUDED.vendor,
+                        status = 'blocked'
+                """, None),  # Parameters will be set after first query
                 
-                # Send both email and Telegram notifications
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(notifier.notify_unknown_device(
-                        notification_data['mac_address'],
-                        notification_data['ip_address'],
-                        notification_data['threat_level'],
-                        extra_info=notification_data
+                # Remove from new_devices
+                ("""
+                    DELETE FROM new_devices 
+                    WHERE mac_address = %s::macaddr
+                """, (mac_clean,))
+            ]
+
+            # Execute in transaction
+            try:
+                # First get device info
+                result = Database.execute_query_single(queries[0][0], (mac_clean,))
+                if result:
+                    # Update parameters for insert query
+                    queries[1] = (queries[1][0], (
+                        result[0],  # mac_address
+                        result[1],  # last_ip
+                        result[2],  # hostname
+                        result[3]   # vendor
                     ))
                     
-                    email_notifier.send_unknown_device_notification(
-                        notification_data['mac_address'],
-                        notification_data['ip_address'],
-                        notification_data['hostname'],
-                        notification_data['vendor'],
-                        notification_data['threat_level'],
-                        notification_data['notes']
-                    )
-                except Exception as e:
-                    current_app.logger.error(f"Failed to send notifications for {device_info[0]}: {e}")
-                finally:
-                    loop.close()
+                    # Execute the transaction
+                    Database.execute_transaction(queries[1:])
+                    blocked += 1
+                    current_app.logger.info(f"Device {mac_clean} blocked successfully")
+                
+            except Exception as e:
+                current_app.logger.error(f"Error blocking device {mac_clean}: {str(e)}")
+                continue
+
+        if blocked > 0:
+            flash(f'Successfully blocked {blocked} devices', 'success')
+        else:
+            flash('No devices were blocked. Please check the MAC addresses.', 'warning')
             
-            flash(f'Marked {len(selected_devices)} devices as threats', 'warning')
-        except Exception as e:
-            current_app.logger.error(f"Error handling block action: {e}")
-            flash('Error processing devices. Please check the logs.', 'error')
-    else:
-        flash('No valid devices to block', 'warning')
+    except Exception as e:
+        current_app.logger.error(f"Error in handle_block_action: {str(e)}")
+        flash('Error processing devices. Please check the logs.', 'error')
+        raise

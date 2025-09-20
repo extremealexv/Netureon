@@ -5,9 +5,20 @@ from dotenv import load_dotenv
 from flask import Flask
 from .config.config import Config
 from .models.database import db
+import logging
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('netureon.log'),
+        logging.StreamHandler()
+    ]
+)
 
 def create_app():
     app = Flask(__name__)
