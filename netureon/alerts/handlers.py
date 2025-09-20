@@ -100,123 +100,26 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
             self.logger.error(f"Error profiling device {mac}: {e}")
             return None
 
-    def process_new_device(self, mac, ip, timestamp):
-        """Process a newly detected device."""
-        logger.info(f"=== Starting device processing for {mac} ({ip}) ===")
-        
+    def create_alert(self, mac, ip, details, timestamp):
+        """Create an alert for the detected device."""
         try:
             with psycopg2.connect(**self.db_config) as conn:
                 with conn.cursor() as cursor:
-                    # First check if device already has an alert
                     cursor.execute("""
-                        SELECT id FROM alerts 
-                        WHERE device_id = %s::macaddr 
-                        AND alert_type = 'new_device'
-                        AND detected_at > NOW() - INTERVAL '1 hour'
-                    """, (mac,))
+                        INSERT INTO alerts 
+                        (device_id, alert_type, detected_at, details, severity)
+                        VALUES (%s::macaddr, 'new_device', NOW(), %s, 'medium')
+                        RETURNING id
+                    """, (mac, details))
                     
-                    if cursor.fetchone():
-                        logger.info(f"Device {mac} already has recent alert")
-                        return None
-
-                    # Profile device
-                    logger.info(f"Starting device profiling for {mac}")
-                    profile = self.profiler.profile_device(ip, mac)
+                    alert_id = cursor.fetchone()[0]
+                    conn.commit()
+                    self.logger.info(f"Created alert {alert_id} for device {mac}")
+                    return alert_id
                     
-                    if profile:
-                        logger.info(f"Profile results for {mac}:")
-                        logger.info(f"  • Hostname: {profile.get('hostname', 'Unknown')}")
-                        logger.info(f"  • Vendor: {profile.get('vendor', 'Unknown')}")
-                        logger.info(f"  • Type: {profile.get('device_type', 'Unknown')}")
-                        
-                        # Store profile
-                        cursor.execute("""
-                            INSERT INTO device_profiles 
-                            (mac_address, hostname, vendor, device_type, open_ports, last_updated)
-                            VALUES (%s::macaddr, %s, %s, %s, %s::jsonb, NOW())
-                            ON CONFLICT (mac_address) DO UPDATE SET
-                                hostname = EXCLUDED.hostname,
-                                vendor = EXCLUDED.vendor,
-                                device_type = EXCLUDED.device_type,
-                                open_ports = EXCLUDED.open_ports,
-                                last_updated = NOW()
-                        """, (
-                            mac,
-                            profile.get('hostname', 'Unknown'),
-                            profile.get('vendor', 'Unknown'),
-                            profile.get('device_type', 'Unknown'),
-                            json.dumps(profile.get('open_ports', []))
-                        ))
-                        
-                        # Create alert
-                        details = f"""New device detected:
-MAC: {mac}
-IP: {ip}
-First Seen: {timestamp}
-Hostname: {profile.get('hostname', 'Unknown')}
-Vendor: {profile.get('vendor', 'Unknown')}
-Type: {profile.get('device_type', 'Unknown')}
-Open Ports: {', '.join(str(p['port']) for p in profile.get('open_ports', []))}"""
-
-                        cursor.execute("""
-                            INSERT INTO alerts 
-                            (device_id, alert_type, detected_at, details, severity)
-                            VALUES (%s::macaddr, 'new_device', NOW(), %s, 'medium')
-                            RETURNING id
-                        """, (mac, details))
-                        
-                        alert_id = cursor.fetchone()[0]
-                        conn.commit()
-                        
-                        logger.info(f"Created alert {alert_id} for device {mac}")
-                        return alert_id
-                    else:
-                        logger.error(f"Failed to profile device {mac}")
-                        return None
-
         except Exception as e:
-            logger.error(f"Error processing device {mac}: {str(e)}")
+            self.logger.error(f"Error creating alert for device {mac}: {e}")
             return None
-
-    def _store_profile(self, cursor, mac, profile):
-        """Store or update device profile in the database."""
-        cursor.execute("""
-            INSERT INTO device_profiles 
-            (mac_address, hostname, vendor, device_type, open_ports, last_updated)
-            VALUES (%s::macaddr, %s, %s, %s, %s::jsonb, NOW())
-            ON CONFLICT (mac_address) DO UPDATE SET
-                hostname = EXCLUDED.hostname,
-                vendor = EXCLUDED.vendor,
-                device_type = EXCLUDED.device_type,
-                open_ports = EXCLUDED.open_ports,
-                last_updated = NOW()
-        """, (
-            mac,
-            profile.get('hostname', 'Unknown'),
-            profile.get('vendor', 'Unknown'),
-            profile.get('device_type', 'Unknown'),
-            json.dumps(profile.get('open_ports', []))
-        ))
-
-    def _create_alert(self, cursor, mac, ip, profile, timestamp):
-        """Create an alert for the detected device."""
-        details = f"""New device detected:
-MAC: {mac}
-IP: {ip}
-First Seen: {timestamp}
-Hostname: {profile.get('hostname', 'Unknown')}
-Vendor: {profile.get('vendor', 'Unknown')}
-Type: {profile.get('device_type', 'Unknown')}
-Open Ports: {', '.join(str(p['port']) for p in profile.get('open_ports', []))}"""
-
-        cursor.execute("""
-            INSERT INTO alerts 
-            (device_id, alert_type, detected_at, details, severity)
-            VALUES (%s::macaddr, 'new_device', NOW(), %s, 'medium')
-            RETURNING id
-        """, (mac, details))
-        
-        return cursor.fetchone()[0]
 
     def get_alert(self, alert_id):
         """Get alert details by ID."""
