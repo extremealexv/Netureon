@@ -128,4 +128,22 @@ class Database:
     @staticmethod
     def execute_transaction(queries):
         """Execute multiple queries in a transaction."""
-        return Database()._execute_transaction_impl(queries)
+        try:
+            with Database.get_connection() as conn:
+                with conn.cursor() as cur:
+                    result = None
+                    for query, params in queries:
+                        # Execute each query with its parameters
+                        cur.execute(query, params)
+                        try:
+                            result = cur.fetchall()
+                        except:
+                            result = None
+                    conn.commit()
+                    return result
+        except Exception as e:
+            # Log the actual error for debugging
+            import logging
+            logging.error(f"Transaction failed: {str(e)}")
+            # Re-raise the exception
+            raise

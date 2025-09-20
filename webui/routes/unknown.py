@@ -102,24 +102,23 @@ def handle_delete_action(selected_devices):
     for mac in selected_devices:
         try:
             mac_clean = mac.strip().lower()
-            # Each query now uses named parameters
             queries = [
                 # Remove from discovery_log
                 ("""
                     DELETE FROM discovery_log 
-                    WHERE mac_address::macaddr = %(mac)s::macaddr
-                """, {'mac': mac_clean}),
+                    WHERE mac_address::macaddr = %s::macaddr
+                """, (mac_clean,)),
                 # Remove any existing alerts
                 ("""
                     DELETE FROM alerts 
-                    WHERE device_id::macaddr = %(mac)s::macaddr
-                """, {'mac': mac_clean}),
+                    WHERE device_id::macaddr = %s::macaddr
+                """, (mac_clean,)),
                 # Finally remove from unknown_devices
                 ("""
                     DELETE FROM unknown_devices 
-                    WHERE mac_address = %(mac)s::macaddr
+                    WHERE mac_address = %s::macaddr
                     RETURNING 1
-                """, {'mac': mac_clean})
+                """, (mac_clean,))
             ]
             
             # Execute all queries in a transaction
