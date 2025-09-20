@@ -432,20 +432,7 @@ def check_alerts():
         
         # Check if we're still in cooldown period
         if last_email_time and (current_time - last_email_time) < email_cooldown:
-            print(f"Email cooldown active. Waiting {email_cooldown - (current_time - last_email_time):.0f} seconds...")
-            return
-            
-        # First, check if we have any unresolved alerts that need attention
-        cursor.execute("""
-            SELECT COUNT(*) 
-            FROM alerts 
-            WHERE NOT is_resolved 
-            AND alert_type IN ('unknown_device', 'new_device')
-            AND detected_at > NOW() - INTERVAL '1 hour'
-        """)
-        alert_count = cursor.fetchone()[0]
-        
-        if alert_count == 0:
+            logger.debug(f"Email cooldown active. Waiting {email_cooldown - (current_time - last_email_time):.0f} seconds...")
             return
             
         # Get only the most recent alerts for each device
@@ -460,57 +447,66 @@ def check_alerts():
                     severity
                 FROM alerts 
                 WHERE NOT is_resolved 
-                AND alert_type IN ('unknown_device', 'new_device')
-                AND detected_at > NOW() - INTERVAL '1 hour'
+                    AND alert_type IN ('unknown_device', 'new_device')
+                    AND detected_at > NOW() - INTERVAL '1 hour'
                 ORDER BY device_id, detected_at DESC
             )
             SELECT * FROM latest_alerts
-            ORDER BY 
-                severity DESC,
+            ORDER BY severity DESC,
                 CASE alert_type 
                     WHEN 'unknown_device' THEN 1
                     WHEN 'new_device' THEN 2
                     ELSE 3
                 END,
-                detected_at DESC
+                detected_at DESC;
         """)
+        
         rows = cursor.fetchall()
         
-        max_retries = 3
+        if not rows:
+            logger.debug("No pending alerts found")
+            return
+            
         for alert_id, device_id, timestamp, alert_type, details, severity in rows:
-            # Format message based on alert type
-            if alert_type == 'new_device':
-                body = f"NEW Device Detected\nMAC: {device_id}\nTime: {timestamp}\nDetails: {details}"
-            elif alert_type == 'unknown_device':
-                body = f"ALERT: {severity.upper()} Risk Threat Device Connected\n{details}\nDetected at: {timestamp}"
-            else:
-                continue  # Skip other alert types
+            try:
+                # Format message based on alert type
+                if alert_type == 'new_device':
+                    subject = "NetGuard Alert: New Device Detected"
+                    body = f"NEW Device Detected\nMAC: {device_id}\nTime: {timestamp}\nDetails: {details}"
+                elif alert_type == 'unknown_device':
+                    subject = f"NetGuard Alert: {severity.upper()} Risk Device"
+                    body = f"ALERT: {severity.upper()} Risk Threat Device Connected\n{details}\nDetected at: {timestamp}"
+                else:
+                    continue
                 
-            # Try to send email with retries
-            for retry in range(max_retries):
-                if send_email(body):
+                # Send notifications
+                email_sent = send_email(subject, body)
+                telegram_sent = send_telegram(body)
+                
+                if email_sent or telegram_sent:
+                    # Mark alert as resolved if at least one notification was sent
                     cursor.execute("""
                         UPDATE alerts 
                         SET is_resolved = TRUE,
                             resolved_at = NOW(),
-                            resolution_notes = 'Alert sent successfully'
+                            resolution_notes = %s
                         WHERE id = %s
-                    """, (alert_id,))
+                    """, (
+                        f"Notifications sent - Email: {'✓' if email_sent else '✗'}, Telegram: {'✓' if telegram_sent else '✗'}",
+                        alert_id
+                    ))
                     conn.commit()
-                    last_email_time = current_time
-                    break
-                else:
-                    if retry < max_retries - 1:
-                        print(f"Retrying email in 5 seconds... (Attempt {retry + 1}/{max_retries})")
-                        time.sleep(5)
-                    else:
-                        print(f"Failed to send alert after {max_retries} attempts")
-                        
-        cursor.close()
-        conn.close()
-        
+                    
+                    if email_sent:
+                        last_email_time = current_time
+                
+            except Exception as e:
+                logger.error(f"Error processing alert {alert_id}: {str(e)}")
+                continue
+                
     except Exception as e:
-        print(f"Error checking alerts: {e}")
+        logger.error(f"Error checking alerts: {str(e)}")
+    finally:
         if 'cursor' in locals():
             cursor.close()
         if 'conn' in locals():
