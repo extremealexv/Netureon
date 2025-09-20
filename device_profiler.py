@@ -99,17 +99,23 @@ class DeviceProfiler:
             self.logger.error(f"Device profiling failed: {str(e)}")
             return profile
 
-    def _determine_device_type(self, ports):
-        """Determine device type based on open ports"""
-        port_numbers = [p['port'] for p in ports]
-        services = [p['service'].lower() for p in ports]
-        
+    def _determine_device_type(self, port_numbers):
+        """Determine device type based on open ports."""
         if 80 in port_numbers or 443 in port_numbers:
-            if 3389 in port_numbers or 445 in port_numbers:
-                return 'Windows PC'
-            elif 22 in port_numbers:
+            return "Web Server"
         elif 8080 in port_numbers or 8443 in port_numbers:
-            return 'IoT Device'
-        elif 5353 in port_numbers or 5000 in port_numbers:
-            return 'Smart Device'
-        return 'Unknown'
+            return "Web Service"
+        elif 22 in port_numbers:
+            return "SSH Server"
+        elif 21 in port_numbers:
+            return "FTP Server"
+        elif 3306 in port_numbers:
+            return "MySQL Database"
+        elif 5432 in port_numbers:
+            return "PostgreSQL Database"
+        elif 1883 in port_numbers or 8883 in port_numbers:
+            return "MQTT Device"
+        elif 53 in port_numbers:
+            return "DNS Server"
+        else:
+            return "Unknown"
