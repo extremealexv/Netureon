@@ -5,6 +5,8 @@ import time
 import os
 from datetime import datetime, timedelta
 import logging
+from device_profiler import DeviceProfiler
+from webui.models.config import Configuration
 
 def main():
     # Connect to the PostgreSQL database
@@ -65,7 +67,6 @@ app = create_app()
 
 def get_notification_settings():
     """Get notification settings from the database."""
-    from webui.models.config import Configuration
     with app.app_context():
         settings = {
             'enable_email_notifications': Configuration.get_setting('enable_email_notifications'),
@@ -80,6 +81,15 @@ def get_notification_settings():
             'telegram_chat_id': Configuration.get_setting('telegram_chat_id')
         }
     return settings
+
+def get_scan_config():
+    """Get scanning configuration from database."""
+    with app.app_context():
+        return {
+            'port_scan_timeout': int(Configuration.get_setting('port_scan_timeout', '2')),
+            'max_ports': int(Configuration.get_setting('max_ports', '1000')),
+            'interface': Configuration.get_setting('network_interface', 'eth0')
+        }
 
 def send_email(body):
     settings = get_notification_settings()
@@ -160,15 +170,54 @@ def send_telegram(message):
         return False
 
 def format_device_info(mac, ip, hostname, vendor, ports):
-    """Format device information for alerts."""
-    return f"""
+    """Format device information for alerts with enhanced profiling."""
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        
+        # Get full device profile
+        cursor.execute("""
+            SELECT 
+                dp.hostname,
+                dp.vendor,
+                dp.device_type,
+                dp.open_ports,
+                dp.last_updated
+            FROM device_profiles dp
+            WHERE dp.mac_address = %s::macaddr
+        """, (mac,))
+        
+        profile = cursor.fetchone()
+        
+        if profile:
+            hostname, vendor, device_type, open_ports, last_updated = profile
+            return f"""
 Device Details:
 MAC: {mac}
 IP: {ip}
 Hostname: {hostname or 'Unknown'}
 Vendor: {vendor or 'Unknown'}
-Open Ports: {', '.join(map(str, ports)) if ports else 'None detected'}
-    """.strip()
+Device Type: {device_type or 'Unknown'}
+Open Ports: {', '.join(map(str, open_ports)) if open_ports else 'None detected'}
+Last Profiled: {last_updated}
+            """.strip()
+        else:
+            # If no profile exists, return basic info
+            return f"""
+Device Details:
+MAC: {mac}
+IP: {ip}
+Status: Profiling in progress...
+            """.strip()
+            
+    except Exception as e:
+        print(f"Error formatting device info: {e}")
+        return f"Device: {mac} (IP: {ip})"
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
 
 def check_for_unknown_devices():
     """Check for new devices and active unknown devices that need alerts."""
@@ -176,6 +225,62 @@ def check_for_unknown_devices():
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         
+        # Check for new devices and profile them
+        cursor.execute("""
+            WITH new_unidentified AS (
+                SELECT 
+                    nd.mac_address,
+                    nd.last_ip,
+                    nd.last_seen
+                FROM new_devices nd
+                LEFT JOIN device_profiles dp ON dp.mac_address = nd.mac_address
+                WHERE dp.mac_address IS NULL  -- Only get devices without profiles
+                AND nd.last_seen > NOW() - INTERVAL '5 minutes'
+            )
+            SELECT 
+                mac_address::text,
+                last_ip::text,
+                last_seen
+            FROM new_unidentified
+        """)
+        
+        new_devices = cursor.fetchall()
+        
+        # Profile new devices
+        profiler = DeviceProfiler()
+        
+        for mac, ip, timestamp in new_devices:
+            try:
+                # Get device profile
+                profile = profiler.profile_device(ip)
+                
+                if profile:
+                    # Update device profile in database
+                    cursor.execute("""
+                        INSERT INTO device_profiles 
+                        (mac_address, hostname, vendor, device_type, open_ports, last_updated)
+                        VALUES (%s::macaddr, %s, %s, %s, %s::jsonb, NOW())
+                        ON CONFLICT (mac_address) 
+                        DO UPDATE SET
+                            hostname = EXCLUDED.hostname,
+                            vendor = EXCLUDED.vendor,
+                            device_type = EXCLUDED.device_type,
+                            open_ports = EXCLUDED.open_ports,
+                            last_updated = NOW()
+                    """, (
+                        mac,
+                        profile.get('hostname'),
+                        profile.get('vendor'),
+                        profile.get('device_type',
+                        profile.get('open_ports', '[]')
+                    ))
+                    conn.commit()
+                    print(f"Updated profile for device {mac}")
+            
+            except Exception as e:
+                print(f"Error profiling device {mac}: {e}")
+                continue
+
         # Check for new devices that haven't been alerted on
         cursor.execute("""
             INSERT INTO alerts (device_id, alert_type, detected_at, details, severity)
@@ -319,100 +424,290 @@ def check_alerts():
     global last_email_time
     
     # Check if we're still in cooldown period
-    current_time = time.time()
-    if last_email_time and (current_time - last_email_time) < email_cooldown:
-        print(f"Email cooldown active. Waiting {email_cooldown - (current_time - last_email_time):.0f} seconds...")
-        return
-        
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        
         # First, check if we have any unresolved alerts that need attention
-        cursor.execute("""
-            SELECT COUNT(*) 
+        cursor.execute(""" (current_time - last_email_time) < email_cooldown:
+            SELECT COUNT(*) wn active. Waiting {email_cooldown - (current_time - last_email_time):.0f} seconds...")
             FROM alerts 
             WHERE NOT is_resolved 
             AND alert_type IN ('unknown_device', 'new_device')
             AND detected_at > NOW() - INTERVAL '1 hour'
-        """)
+        """)or = conn.cursor()
         alert_count = cursor.fetchone()[0]
-        
+        # First, check if we have any unresolved alerts that need attention
         if alert_count == 0:
-            return
-            
+            return COUNT(*) 
+            FROM alerts 
         # Get only the most recent alerts for each device
-        cursor.execute("""
-            WITH latest_alerts AS (
+        cursor.execute(""" IN ('unknown_device', 'new_device')
+            WITH latest_alerts AS ( - INTERVAL '1 hour'
                 SELECT DISTINCT ON (device_id) 
-                    id,
+                    id,ursor.fetchone()[0]
                     device_id,
                     detected_at,
                     alert_type,
                     details,
-                    severity
+                    severityrecent alerts for each device
                 FROM alerts 
                 WHERE NOT is_resolved 
                 AND alert_type IN ('unknown_device', 'new_device')
                 AND detected_at > NOW() - INTERVAL '1 hour'
                 ORDER BY device_id, detected_at DESC
-            )
+            )       detected_at,
             SELECT * FROM latest_alerts
-            ORDER BY 
+            ORDER BY etails,
                 severity DESC,
                 CASE alert_type 
                     WHEN 'unknown_device' THEN 1
-                    WHEN 'new_device' THEN 2
-                    ELSE 3
-                END,
+                    WHEN 'new_device' THEN 2device', 'new_device')
+                    ELSE 3ed_at > NOW() - INTERVAL '1 hour'
+                END,R BY device_id, detected_at DESC
                 detected_at DESC
-        """)
+        """)SELECT * FROM latest_alerts
         rows = cursor.fetchall()
-        
-        max_retries = 3
+                severity DESC,
+        max_retries = 3ert_type 
         for alert_id, device_id, timestamp, alert_type, details, severity in rows:
             # Format message based on alert type
             if alert_type == 'new_device':
                 body = f"NEW Device Detected\nMAC: {device_id}\nTime: {timestamp}\nDetails: {details}"
             elif alert_type == 'unknown_device':
                 body = f"ALERT: {severity.upper()} Risk Threat Device Connected\n{details}\nDetected at: {timestamp}"
-            else:
+            else:rsor.fetchall()
                 continue  # Skip other alert types
-            
-            # Try to send email with retries
-            for retry in range(max_retries):
-                if send_email(body):
-                    cursor.execute("""
-                        UPDATE alerts 
-                        SET is_resolved = TRUE,
+            retries = 3
+            # Try to send email with retriesalert_type, details, severity in rows:
+            for retry in range(max_retries):type
+                if send_email(body):vice':
+                    cursor.execute("""tected\nMAC: {device_id}\nTime: {timestamp}\nDetails: {details}"
+                        UPDATE alerts n_device':
+                        SET is_resolved = TRUE,()} Risk Threat Device Connected\n{details}\nDetected at: {timestamp}"
                             resolved_at = NOW(),
                             resolution_notes = 'Alert sent successfully'
                         WHERE id = %s
-                    """, (alert_id,))
-                    conn.commit()
-                    break
-                else:
+                    """, (alert_id,))retries
+                    conn.commit()x_retries):
+                    breakmail(body):
+                else:ursor.execute("""
                     if retry < max_retries - 1:
                         print(f"Retrying email in 5 seconds... (Attempt {retry + 1}/{max_retries})")
-                        time.sleep(5)
-                    else:
+                        time.sleep(5)at = NOW(),
+                    else:   resolution_notes = 'Alert sent successfully'
                         print(f"Failed to send alert after {max_retries} attempts")
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-    except Exception as e:
+                    """, (alert_id,))
+        conn.commit()onn.commit()
+        cursor.close()eak
+        conn.close():
+                    if retry < max_retries - 1:
+    except Exception as e:int(f"Retrying email in 5 seconds... (Attempt {retry + 1}/{max_retries})")
         print(f"Database error: {e}")
-
-def handle_new_device(device_info):
+                    else:
+def handle_new_device(device_info):led to send alert after {max_retries} attempts")
     """Handle new device detection with proper logging"""
     logger = logging.getLogger('netureon')
-    
-    try:
+        cursor.close()
+    try:conn.close()
         notifications_sent = []
-        
+        pt Exception as e:
         # Try email notification
+        email_notifier = EmailNotifier()
+        if email_notifier.config:
+            email_sent = email_notifier.notify_new_device(
+                device_info['mac'],
+                device_info['ip'],
+                device_info['timestamp']
+            )
+            notifications_sent.append(f"Email: {'✓' if email_sent else '✗'}")
+        
+        # Try Telegram notification
+        telegram_notifier = TelegramNotifier()
+        if telegram_notifier.config:
+            telegram_sent = telegram_notifier.notify_new_device(
+                device_info['mac'],
+                device_info['ip'],
+                device_info['timestamp']
+            )
+            notifications_sent.append(f"Telegram: {'✓' if telegram_sent else '✗'}")
+        
+        if notifications_sent:
+            logger.info(f"Notifications sent: {', '.join(notifications_sent)}")
+        else:
+            logger.warning("No notification methods configured")
+            
+    except Exception as e:
+        logger.error(f"Error in notification handler: {str(e)}")
+
+if __name__ == "__main__":
+    print("Alert daemon started...")
+    while True:
+        check_for_unknown_devices()  # Check for unknown device connections
+        check_alerts()               # Process pending alerts
+        time.sleep(10)  # Check every 10 seconds
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        print(f"Unexpected error: {e}")    except Exception as e:        print("Shutting down...")    except KeyboardInterrupt:        main_loop()        # Run the main loop for periodic tasks    try:if __name__ == "__main__":        time.sleep(300)  # 5 minutes        # Wait before next iteration                    print(f"Error in main loop: {e}")        except Exception as e:            print("Periodic tasks completed")                        periodic_device_profiling()            # Profile devices that haven't been updated recently                        check_alerts()            # Check and send alerts for unresolved issues                        check_for_unknown_devices()            # Check for unknown devices and handle alerts                        scan_network()            # Scan the network for new devices                        print("Starting periodic tasks")        try:    while True:    """Main loop for periodic tasks."""def main_loop():        print(f"Error in scan_network: {e}")    except Exception as e:                # This should perform the network scan and update the database with new devices        # Placeholder for actual network scanning logic                print(f"Scanning network on interface {interface} with timeout {timeout}s, max ports {max_ports}")                interface = config['interface']        max_ports = config['max_ports']        timeout = config['port_scan_timeout']        config = get_scan_config()    try:    """Scan the network for new devices."""def scan_network():        print(f"Error in periodic_device_profiling: {e}")    except Exception as e:        conn.close()        cursor.close()                continue                print(f"Error profiling device {mac}: {e}")            except Exception as e:                profile_device(mac, ip)                print(f"Profiling stale device {mac} (IP: {ip})")            try:        for mac, ip in stale_devices:                stale_devices = cursor.fetchall()        """)            WHERE last_updated < NOW() - INTERVAL '1 hour'            FROM device_profiles            SELECT mac_address, last_ip        cursor.execute("""        # Select devices that haven't been updated in the last hour                cursor = conn.cursor()        conn = psycopg2.connect(**DB_CONFIG)    try:    """Periodically profile devices that are not recently updated."""def periodic_device_profiling():        return None        print(f"Error profiling device {mac} (IP: {ip}): {e}")    except Exception as e:            return None            print(f"No profile found for device {mac} (IP: {ip})")        else:            return profile                        conn.close()            cursor.close()            conn.commit()            ))                profile.get('open_ports', '[]')                profile.get('device_type'),                profile.get('vendor'),                profile.get('hostname'),                mac,            """, (                    last_updated = NOW()                    open_ports = EXCLUDED.open_ports,                    device_type = EXCLUDED.device_type,                    vendor = EXCLUDED.vendor,                    hostname = EXCLUDED.hostname,                DO UPDATE SET                ON CONFLICT (mac_address)                 VALUES (%s::macaddr, %s, %s, %s, %s::jsonb, NOW())                (mac_address, hostname, vendor, device_type, open_ports, last_updated)                INSERT INTO device_profiles             cursor.execute("""                        cursor = conn.cursor()            conn = psycopg2.connect(**DB_CONFIG)            # Update or insert device profile in database        if profile:                profile = profiler.profile_device(ip)        profiler = DeviceProfiler()    try:    """Profile a device based on its MAC and IP address."""def profile_device(mac, ip):            conn.close()        if 'conn' in locals():
+            cursor.close()
+        if 'cursor' in locals():
+    finally:
+        logger.error(f"Error handling new device {device_info}: {e}")
+    except Exception as e:
+                logger.info(f"Notifications sent for new device {mac}: {', '.join(notifications_sent)}")        # Log the notification results                    logger.warning(f"Failed to send Telegram notification for new device: {mac}")        else:            logger.info(f"Telegram notification sent for new device: {mac}")            notifications_sent.append('telegram')        if send_telegram(telegram_message):        telegram_message = f"New device detected:\nMAC: {mac}\nIP: {ip}\nVendor: {vendor}"        # Telegram notification                    logger.warning(f"Failed to send email notification for new device: {mac}")        else:            logger.info(f"Email notification sent for new device: {mac}")            notifications_sent.append('email')        if send_email(body):        # Email notification                body = f"New device has been detected on the network:\n\n{device_details}"        subject = f"New Device Detected: {mac}"        # Send notifications                logger.info(f"Inserted new device into known_devices: {mac}")        conn.commit()        """, (mac, ip, hostname))            VALUES (%s::macaddr, %s, NOW(), NOW(), %s)            INSERT INTO known_devices (mac_address, ip_address, first_seen, last_seen, device_name)        cursor.execute("""        # Insert new device into known_devices table                    return  # No action needed for known devices            logger.info(f"Device {mac} is already known")        if is_known_device:                is_known_device = cursor.fetchone()[0] > 0        """, (mac,))            WHERE mac_address::macaddr = %s::macaddr            FROM known_devices            SELECT COUNT(*)        cursor.execute("""                cursor = conn.cursor()        conn = psycopg2.connect(**DB_CONFIG)        # Check if device is already known                device_details = format_device_info(mac, ip, hostname, vendor, ports)        # Format device information for alert                logger.info(f"New device detected: {mac} (IP: {ip})")        # Log the new device detection                ports = device_info.get('ports', [])        vendor = device_info.get('vendor')        hostname = device_info.get('hostname')        ip = device_info.get('ip')        mac = device_info.get('mac')        # Unpack device info                notifications_sent = []    try:        logger = logging.getLogger('netureon')    """Handle new device detection with proper logging"""def handle_new_device(device_info):        print(f"Database error: {e}")        # Try email notification
         email_notifier = EmailNotifier()
         if email_notifier.config:
             email_sent = email_notifier.notify_new_device(
