@@ -107,21 +107,25 @@ def handle_delete_action(selected_devices):
                 ("""
                     DELETE FROM discovery_log 
                     WHERE mac_address::macaddr = %s::macaddr
-                """, (mac_clean,)),
+                """, [mac_clean]),  # Changed tuple to list
                 # Remove any existing alerts
                 ("""
                     DELETE FROM alerts 
                     WHERE device_id::macaddr = %s::macaddr
-                """, (mac_clean,)),
+                """, [mac_clean]),  # Changed tuple to list
                 # Finally remove from unknown_devices
                 ("""
                     DELETE FROM unknown_devices 
                     WHERE mac_address = %s::macaddr
                     RETURNING 1
-                """, (mac_clean,))
+                """, [mac_clean])  # Changed tuple to list
             ]
-            Database.execute_transaction(queries)
-            deleted += 1
+            
+            # Execute all queries in a transaction
+            result = Database.execute_transaction(queries)
+            if result:
+                deleted += 1
+                
         except Exception as e:
             flash(f'Error deleting device {mac}: {str(e)}', 'error')
             continue
