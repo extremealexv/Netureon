@@ -29,7 +29,7 @@ def main_page():
             k.last_ip,
             k.first_seen,
             k.last_seen,
-            k.risk_level,
+            COALESCE(k.risk_level, 'medium') as risk_level,
             k.notes,
             COALESCE(k.open_ports, '[]'::jsonb) as open_ports,
             EXISTS(
