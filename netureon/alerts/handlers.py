@@ -8,7 +8,7 @@ logger = setup_logging('netureon.handlers')
 
 class DeviceHandler:
     def __init__(self):
-        self.settings = Settings()
+        self.settings = Settings.get_instance()
         self.db_config = self.settings.get_db_config()
         self.profiler = DeviceProfiler()
 
@@ -177,3 +177,56 @@ Open Ports: {', '.join(str(p['port']) for p in profile.get('open_ports', []))}""
         """, (mac, details))
         
         return cursor.fetchone()[0]
+
+    def get_alert(self, alert_id):
+        """Get alert details by ID."""
+        try:
+            with psycopg2.connect(**self.db_config) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT 
+                            device_id,
+                            alert_type,
+                            detected_at,
+                            details,
+                            severity
+                        FROM alerts 
+                        WHERE id = %s
+                    """, (alert_id,))
+                    
+                    row = cursor.fetchone()
+                    if row:
+                        return {
+                            'id': alert_id,
+                            'device_id': row[0],
+                            'type': row[1],
+                            'timestamp': row[2],
+                            'details': row[3],
+                            'severity': row[4]
+                        }
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"Error getting alert {alert_id}: {str(e)}")
+            return None
+
+    def update_alert_status(self, alert_id, email_sent, telegram_sent):
+        """Update alert status after sending notifications."""
+        try:
+            with psycopg2.connect(**self.db_config) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE alerts 
+                        SET is_resolved = true,
+                            resolved_at = NOW(),
+                            resolution_notes = %s
+                        WHERE id = %s
+                    """, (
+                        f"Notifications sent - Email: {'✓' if email_sent else '✗'}, "
+                        f"Telegram: {'✓' if telegram_sent else '✗'}",
+                        alert_id
+                    ))
+                    conn.commit()
+                    
+        except Exception as e:
+            logger.error(f"Error updating alert {alert_id}: {str(e)}")

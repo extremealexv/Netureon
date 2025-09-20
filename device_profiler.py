@@ -9,14 +9,22 @@ class DeviceProfiler:
         self.logger = logging.getLogger('netureon')
         self.nm = nmap.PortScanner()
         self.mac_lookup = MacLookup()
+        
+    def _get_hostname(self, ip):
+        """Get hostname for IP with error handling."""
         try:
-            self.mac_lookup.update_vendors()
-            self.logger.info("MAC vendor database updated successfully")
+            # Remove subnet mask if present
+            clean_ip = ip.split('/')[0]
+            return socket.gethostbyaddr(clean_ip)[0]
+        except (socket.herror, socket.gaierror) as e:
+            self.logger.debug(f"Could not resolve hostname for {ip}: {e}")
+            return "Unknown"
         except Exception as e:
-            self.logger.warning(f"Could not update MAC vendor database: {e}")
+            self.logger.error(f"Error resolving hostname for {ip}: {e}")
+            return "Unknown"
 
     def profile_device(self, ip, mac):
-        """Profile a device by IP and MAC address"""
+        """Profile a device by IP and MAC address."""
         self.logger.info(f"\n=== Starting device profiling for {ip} ({mac}) ===")
         
         profile = {
@@ -27,13 +35,12 @@ class DeviceProfiler:
         }
         
         try:
-            # Try to get hostname
+            # Clean IP address if it has subnet mask
+            clean_ip = ip.split('/')[0]
+            
             self.logger.info("1. Resolving hostname...")
-            try:
-                profile['hostname'] = socket.gethostbyaddr(ip)[0]
-                self.logger.info(f"   • Hostname resolved: {profile['hostname']}")
-            except socket.herror as e:
-                self.logger.info(f"   • Hostname resolution failed: {e}")
+            profile['hostname'] = self._get_hostname(clean_ip)
+            self.logger.info(f"   • Hostname: {profile['hostname']}")
 
             # Try to get vendor from MAC
             self.logger.info("2. Looking up vendor...")

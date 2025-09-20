@@ -18,7 +18,7 @@ class AlertDaemon:
         self.email_notifier = EmailNotifier()
         self.telegram_notifier = TelegramNotifier()
         self.running = True
-        self.check_interval = 10  # seconds
+        self.check_interval = 30  # seconds
 
     def _find_nmap(self):
         """Find nmap executable in system paths."""
