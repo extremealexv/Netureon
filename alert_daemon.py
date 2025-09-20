@@ -255,7 +255,7 @@ def check_for_unknown_devices():
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         
-        # Get devices without profiles
+        # Get only truly new devices without profiles
         cursor.execute("""
             SELECT 
                 nd.mac_address::text,
@@ -268,28 +268,23 @@ def check_for_unknown_devices():
         """)
         
         new_devices = cursor.fetchall()
-        logger.info(f"Found {len(new_devices)} devices without profiles")
+        if new_devices:
+            logger.info(f"Found {len(new_devices)} new devices that need profiling")
         
         profiler = DeviceProfiler()
         for mac, ip, timestamp in new_devices:
             try:
+                # Profile the device first
                 logger.info(f"Profiling device: MAC={mac}, IP={ip}")
                 profile = profiler.profile_device(ip)
                 
                 if profile:
-                    logger.info(f"Profile found for {mac}: {profile}")
-                    # Update device profile
+                    logger.info(f"Profile results for {mac}: {profile}")
+                    # Store profile
                     cursor.execute("""
                         INSERT INTO device_profiles 
                         (mac_address, hostname, vendor, device_type, open_ports, last_updated)
                         VALUES (%s::macaddr, %s, %s, %s, %s::jsonb, NOW())
-                        ON CONFLICT (mac_address) 
-                        DO UPDATE SET
-                            hostname = EXCLUDED.hostname,
-                            vendor = EXCLUDED.vendor,
-                            device_type = EXCLUDED.device_type,
-                            open_ports = EXCLUDED.open_ports,
-                            last_updated = NOW()
                     """, (
                         mac,
                         profile.get('hostname', 'Unknown'),
@@ -298,41 +293,43 @@ def check_for_unknown_devices():
                         profile.get('open_ports', '[]')
                     ))
                     
-                    # Create alert for new device
-                    device_info = format_device_info(mac, ip, 
-                                                   profile.get('hostname'),
-                                                   profile.get('vendor'),
-                                                   profile.get('open_ports', []))
-                    
+                    # Create alert with profile information
+                    details = f"""New device detected:
+MAC: {mac}
+IP: {ip}
+First Seen: {timestamp}
+Hostname: {profile.get('hostname', 'Unknown')}
+Vendor: {profile.get('vendor', 'Unknown')}
+Type: {profile.get('device_type', 'Unknown')}
+Open Ports: {', '.join(str(p['port']) for p in profile.get('open_ports', []))}"""
+
                     cursor.execute("""
-                        INSERT INTO alerts (device_id, alert_type, detected_at, details, severity)
-                        VALUES (%s::macaddr, 'new_device', NOW(), %s, 'medium')
+                        INSERT INTO alerts 
+                        (device_id, alert_type, detected_at, details, severity, is_resolved)
+                        VALUES (%s::macaddr, 'new_device', %s, %s, 'medium', false)
                         RETURNING id
-                    """, (mac, device_info))
+                    """, (mac, timestamp, details))
                     
                     alert_id = cursor.fetchone()[0]
                     conn.commit()
-                    
+
                     # Send notifications
-                    subject = "NetGuard Alert: New Device Detected"
-                    body = device_info
-                    
-                    email_sent = send_email(subject, body)
-                    telegram_sent = send_telegram(body)
+                    email_sent = send_email("NetGuard Alert: New Device Detected", details)
+                    telegram_sent = send_telegram(details)
                     
                     logger.info(f"Notifications for {mac} - Email: {'✓' if email_sent else '✗'}, "
                               f"Telegram: {'✓' if telegram_sent else '✗'}")
                     
             except Exception as e:
-                logger.error(f"Error profiling device {mac}: {str(e)}")
+                logger.error(f"Error processing device {mac}: {str(e)}")
                 conn.rollback()
                 continue
 
-        cursor.close()
-        conn.close()
-        
     except Exception as e:
         logger.error(f"Error in check_for_unknown_devices: {str(e)}")
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
         if 'conn' in locals():
             conn.close()
 

@@ -1,90 +1,96 @@
+import nmap
 import socket
 import requests
-import subprocess
-from datetime import datetime
 import logging
-
-logger = logging.getLogger(__name__)
+from mac_vendor_lookup import MacLookup
+from concurrent.futures import ThreadPoolExecutor
 
 class DeviceProfiler:
-    def __init__(self, mac_address, ip_address=None):
-        self.mac_address = mac_address
-        self.ip_address = ip_address
-
-    def get_mac_vendor(self):
-        url = f"https://api.macvendors.com/{self.mac_address}"
+    def __init__(self):
+        self.logger = logging.getLogger('netureon')
+        self.nm = nmap.PortScanner()
+        self.mac_lookup = MacLookup()
+        # Update MAC vendor database
         try:
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                return response.text
-            else:
-                return "Unknown vendor"
+            self.mac_lookup.update_vendors()
         except Exception as e:
-            return f"Error: {e}"
+            self.logger.warning(f"Could not update MAC vendor database: {e}")
 
-    def get_hostname(self):
-        if not self.ip_address:
-            return "IP address not provided"
+    def profile_device(self, ip, timeout=5):
+        """Profile a device by IP address"""
         try:
-            return socket.gethostbyaddr(self.ip_address)[0]
-        except socket.herror:
-            return "Hostname not found"
+            self.logger.info(f"Profiling device at {ip}")
+            profile = {
+                'hostname': self._get_hostname(ip),
+                'vendor': None,
+                'device_type': None,
+                'open_ports': []
+            }
 
-    def scan_open_ports(self, ports=[22, 23, 80, 443, 3389, 8080, 3306, 5432, 6379, 27017, 5000, 8000, 8888]):
-        if not self.ip_address:
-            return "IP address not provided"
-            
-        # Prioritize common ports first for faster profiling
-        priority_ports = [80, 443, 22, 23]  # HTTP(S), SSH, Telnet
-        iot_ports = [8080, 8443, 1883, 8883]  # HTTP(S), MQTT
-        network_ports = [161, 162, 53, 67, 68]  # SNMP, DNS, DHCP
-        media_ports = [554, 1935, 5353]  # RTSP, RTMP, mDNS
-        
-        # Combine all ports, remove duplicates, maintain priority order
-        all_ports = (priority_ports + 
-                    [p for p in ports if p not in priority_ports] +
-                    iot_ports + network_ports + media_ports)
-        all_ports = list(dict.fromkeys(all_ports))  # Remove duplicates while preserving order
-        
-        open_ports = []
-        # Use multiple threads for faster scanning
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        from concurrent.futures import TimeoutError
-        
-        def check_port(port):
+            # Scan common ports
             try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.settimeout(0.2)  # Very short timeout for faster scanning
-                    result = sock.connect_ex((self.ip_address, port))
-                    if result == 0:
-                        return port
-                    return None
-            except Exception:
-                return None
-        
-        # Scan in parallel with a maximum of 10 concurrent checks
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_port = {executor.submit(check_port, port): port 
-                            for port in all_ports}
-            
-            for future in as_completed(future_to_port):
-                try:
-                    port = future.result(timeout=0.5)
-                    if port is not None:
-                        open_ports.append(port)
-                except TimeoutError:
-                    continue
-                
-        return sorted(open_ports)
+                result = self.nm.scan(ip, arguments=f'-sV -sT -T4 --min-rate 1000 --max-retries 2 --host-timeout {timeout}s')
+                if ip in self.nm.all_hosts():
+                    host_data = self.nm[ip]
+                    
+                    # Get open ports
+                    profile['open_ports'] = []
+                    for proto in host_data.all_protocols():
+                        ports = host_data[proto].keys()
+                        for port in ports:
+                            service = host_data[proto][port]
+                            if service['state'] == 'open':
+                                profile['open_ports'].append({
+                                    'port': port,
+                                    'service': service.get('name', 'unknown'),
+                                    'version': service.get('version', '')
+                                })
 
-    def profile(self):
-        vendor = self.get_mac_vendor()
-        hostname = self.get_hostname()
-        open_ports = self.scan_open_ports()
-        return {
-            'mac_address': self.mac_address,
-            'ip_address': self.ip_address,
-            'vendor': vendor,
-            'hostname': hostname,
-            'open_ports': open_ports
-        }
+                    # Try to determine device type
+                    profile['device_type'] = self._determine_device_type(profile['open_ports'])
+            except Exception as e:
+                self.logger.error(f"Port scan failed for {ip}: {e}")
+
+            # Get MAC vendor information
+            if hasattr(self.nm, 'all_hosts_mac'):
+                mac = self.nm.all_hosts_mac().get(ip)
+                if mac:
+                    try:
+                        profile['vendor'] = self.mac_lookup.lookup(mac)
+                    except Exception as e:
+                        self.logger.warning(f"Vendor lookup failed for MAC {mac}: {e}")
+
+            self.logger.info(f"Profile complete for {ip}: {profile}")
+            return profile
+
+        except Exception as e:
+            self.logger.error(f"Device profiling failed for {ip}: {e}")
+            return None
+
+    def _get_hostname(self, ip):
+        """Get hostname for IP address"""
+        try:
+            return socket.gethostbyaddr(ip)[0]
+        except:
+            return None
+
+    def _determine_device_type(self, open_ports):
+        """Determine device type based on open ports"""
+        ports = [p['port'] for p in open_ports]
+        services = [p['service'].lower() for p in open_ports]
+
+        if 80 in ports or 443 in ports:
+            if any(s in services for s in ['microsoft-ds', 'netbios']):
+                return 'Windows PC'
+            elif 'ssh' in services:
+                return 'Linux/Unix Device'
+            else:
+                return 'Web Server'
+        elif 22 in ports:
+            return 'Network Device'
+        elif 8080 in ports or 8443 in ports:
+            return 'IoT Device'
+        elif 161 in ports or 162 in ports:
+            return 'Network Equipment'
+        else:
+            return 'Unknown'
