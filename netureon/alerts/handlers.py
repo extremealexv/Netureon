@@ -8,10 +8,10 @@ logger = setup_logging('netureon.handlers')
 
 class DeviceHandler:
     def __init__(self):
-        self.settings = Settings.get_instance()
+        self.settings = Settings()  # Use constructor instead of get_instance
         self.db_config = self.settings.get_db_config()
         self.profiler = DeviceProfiler()
-
+        
     def check_for_unknown_devices(self):
         """Check and profile new devices."""
         logger.info("=== Starting device check cycle ===")
