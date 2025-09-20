@@ -10,6 +10,12 @@ from telegram.error import TelegramError
 from telegram.constants import ParseMode
 from telegram.request import HTTPXRequest
 from webui.models.config import Configuration
+import os
+import requests
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +26,15 @@ class TelegramNotifier:
         """Initialize the Telegram notifier."""
         self._bot = None
         self._loop = None
-        self.bot_token = None
-        self.chat_id = None
+        self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+        self.chat_id = os.getenv('TELEGRAM_CHAT_ID')
         self._init_done = False
         self._event_loop = None
         
+        if not self.bot_token or not self.chat_id:
+            logger.error("Telegram configuration missing. Check TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env")
+            return
+
     def _check_configuration(self):
         """Check if Telegram notifications are properly configured."""
         try:
@@ -114,6 +124,33 @@ class TelegramNotifier:
             return False
         except Exception as e:
             logger.error(f"Unexpected error sending Telegram message: {str(e)}")
+            return False
+
+    def send_message_old(self, message):
+        """Send message via Telegram bot"""
+        if not self.bot_token or not self.chat_id:
+            logger.error("Telegram not configured - skipping notification")
+            return False
+
+        try:
+            url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+            data = {
+                "chat_id": self.chat_id,
+                "text": message,
+                "parse_mode": "HTML"
+            }
+            
+            response = requests.post(url, data=data, timeout=10)
+            
+            if response.status_code == 200:
+                logger.info("Telegram notification sent successfully")
+                return True
+            else:
+                logger.error(f"Failed to send Telegram notification: {response.text}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending Telegram notification: {str(e)}")
             return False
 
     def notify(self, message: str) -> None:
@@ -229,3 +266,30 @@ class TelegramNotifier:
             f"{message}"
         )
         await self.send_message(alert_message)
+
+    def send_message(self, message):
+        """Send message using configuration from database"""
+        if not self.config:
+            self.logger.error("Telegram not configured - skipping notification")
+            return False
+
+        try:
+            url = f"https://api.telegram.org/bot{self.config['bot_token']}/sendMessage"
+            data = {
+                "chat_id": self.config['chat_id'],
+                "text": message,
+                "parse_mode": "HTML"
+            }
+            
+            response = requests.post(url, data=data, timeout=10)
+            
+            if response.status_code == 200:
+                self.logger.info("Telegram notification sent successfully")
+                return True
+            else:
+                self.logger.error(f"Failed to send Telegram notification: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error sending Telegram notification: {str(e)}")
+            return False
