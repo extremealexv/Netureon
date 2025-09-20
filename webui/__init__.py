@@ -6,19 +6,33 @@ from flask import Flask
 from .config.config import Config
 from .models.database import db
 import logging
+from logging.handlers import RotatingFileHandler
 
 # Load environment variables
 load_dotenv()
 
 # Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('netureon.log'),
-        logging.StreamHandler()
-    ]
-)
+log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+log_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'netureon.log')
+
+# Create logs directory if it doesn't exist
+os.makedirs(os.path.dirname(log_file), exist_ok=True)
+
+# Setup file handler with rotation
+file_handler = RotatingFileHandler(log_file, maxBytes=10485760, backupCount=5)
+file_handler.setFormatter(log_formatter)
+file_handler.setLevel(logging.DEBUG)
+
+# Setup console handler
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+console_handler.setLevel(logging.INFO)
+
+# Configure root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.DEBUG)
+root_logger.addHandler(file_handler)
+root_logger.addHandler(console_handler)
 
 def create_app():
     app = Flask(__name__)
