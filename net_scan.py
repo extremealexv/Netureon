@@ -4,51 +4,21 @@ This module provides network discovery and device tracking functionality using
 ARP scanning and device profiling capabilities.
 """
 
-import psycopg2
-import netifaces
-import asyncio
-import time
-from scapy.all import ARP, Ether, srp
-from datetime import datetime
-import ipaddress
 import os
-import logging
-from dotenv import load_dotenv
-from device_profiler import DeviceProfiler
-from version import __version__
-from webui.app import create_app
-from webui.utils.email_notifier import EmailNotifier
-from webui.utils.telegram_notifier import TelegramNotifier
-from webui.config.config import Config
-import socket
-import psutil
-import subprocess
-import sdnotify
-import signal
-import fcntl
 import sys
-import os.path
-
-# Configure logging
-log_dir = os.path.expanduser('~/Netureon/logs')
-os.makedirs(log_dir, exist_ok=True)
-log_file = os.path.join(log_dir, 'netureon.log')
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(log_file)
-    ]
-)
-logger = logging.getLogger(__name__)
+import time
+import logging
+from logging.handlers import RotatingFileHandler
+import sdnotify
+from scapy.all import ARP, Ether, srp
+import psycopg2
+from concurrent.futures import ThreadPoolExecutor
+import argparse
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-logger.info(f"Netureon Scanner v{__version__} initialized")
 
-# PostgreSQL connection settings
 DB_CONFIG = {
     'dbname': os.getenv('DB_NAME'),
     'user': os.getenv('DB_USER'),
@@ -57,424 +27,139 @@ DB_CONFIG = {
     'port': os.getenv('DB_PORT')
 }
 
-def get_local_subnet():
-    """
-    Detect and return the local subnet for scanning.
-    Returns:
-        str: CIDR notation of the local subnet (e.g., '192.168.1.0/24')
-    """
-    for iface in netifaces.interfaces():
-        if iface == 'lo' or not netifaces.AF_INET in netifaces.ifaddresses(iface):
-            continue
-        
-        ipv4_info = netifaces.ifaddresses(iface)[netifaces.AF_INET][0]
-        ip = ipv4_info['addr']
-        netmask = ipv4_info['netmask']
-        
-        if ip and netmask:
-            ip_interface = ipaddress.IPv4Interface(f"{ip}/{netmask}")
-            network = ip_interface.network
-            if network.is_private:
-                return str(network)
-
-    raise RuntimeError("No active LAN interface with IPv4 found.")
-
 class NetworkScanner:
-    def __init__(self):
-        """Initialize the network scanner."""
-        self.running = False
-        self.app = create_app()
-        self.email_notifier = EmailNotifier()
-        self.telegram_notifier = TelegramNotifier()
-        self.lock_file = '/tmp/netureon_scanner.lock'
+    def __init__(self, single_scan=False):
+        self.setup_logging()
         self.notifier = sdnotify.SystemdNotifier()
-        self.last_watchdog = 0
-        self.watchdog_interval = 30  # 30 seconds watchdog interval
+        self.running = True
+        self.last_watchdog = time.time()
+        self.watchdog_interval = 30
+        self.single_scan = single_scan
+        self.db_conn = None
+        self.logger.info("Netureon Scanner v1.3.1 initialized")
+
+    def setup_logging(self):
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+        os.makedirs(log_dir, exist_ok=True)
         
-        # Setup signal handlers
-        signal.signal(signal.SIGTERM, self.handle_shutdown)
-        signal.signal(signal.SIGINT, self.handle_shutdown)
+        log_file = os.path.join(log_dir, 'netureon.log')
         
-        # Test database connection early
-        try:
-            with psycopg2.connect(**DB_CONFIG):
-                pass
-            logger.info("Database connection test successful")
-        except Exception as e:
-            logger.error(f"Database connection failed: {e}")
-            sys.exit(1)
+        handler = RotatingFileHandler(
+            log_file,
+            maxBytes=10*1024*1024,
+            backupCount=5,
+            delay=False,
+            mode='a'
+        )
         
-        # Check if running under systemd
-        notify_socket = os.environ.get('NOTIFY_SOCKET')
-        if notify_socket:
-            logger.info("Running under systemd, will send notifications")
-            try:
-                self.notifier.notify("READY=1")
-                logger.info("Successfully notified systemd of readiness")
-            except Exception as e:
-                logger.warning(f"Systemd notification warning (non-fatal): {e}")
-                self.notifier = None  # Disable notifications if they fail
-        else:
-            logger.info("Not running under systemd, notifications disabled")
-            self.notifier = None  # Disable notifications if not under systemd
-    
-    def ping_watchdog(self):
-        """Send watchdog keep-alive signal to systemd."""
-        if not self.notifier:  # Skip if not running under systemd
-            return
+        formatter = logging.Formatter(
+            '%(asctime)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        handler.setFormatter(formatter)
+        
+        self.logger = logging.getLogger()
+        self.logger.setLevel(logging.INFO)
+        
+        for h in self.logger.handlers[:]:
+            self.logger.removeHandler(h)
             
+        self.logger.addHandler(handler)
+        handler.flush()
+        return self.logger
+
+    def connect_db(self):
+        try:
+            if not self.db_conn or self.db_conn.closed:
+                self.db_conn = psycopg2.connect(**DB_CONFIG)
+                self.db_conn.autocommit = True
+        except Exception as e:
+            self.logger.error(f"Database connection failed: {e}")
+            raise
+
+    def scan_network(self):
+        try:
+            self.logger.info("Starting network scan...")
+            self.connect_db()
+            self.ping_watchdog()
+            
+            devices = []
+            for subnet in ["192.168.1.0/24"]:  # Add more subnets if needed
+                arp = ARP(pdst=subnet)
+                ether = Ether(dst="ff:ff:ff:ff:ff:ff")
+                packet = ether/arp
+
+                result = srp(packet, timeout=3, verbose=0)[0]
+                chunk_devices = [(received.psrc, received.hwsrc) for sent, received in result]
+                devices.extend(chunk_devices)
+                self.ping_watchdog()
+
+            self.process_devices(devices)
+            self.logger.info(f"Scan complete. Found {len(devices)} devices")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Scan failed: {str(e)}")
+            return False
+        finally:
+            if self.db_conn:
+                self.db_conn.close()
+
+    def process_devices(self, devices):
+        cur = self.db_conn.cursor()
+        try:
+            for ip, mac in devices:
+                cur.execute("""
+                    INSERT INTO new_devices (mac_address, last_ip, last_seen)
+                    VALUES (%s::macaddr, %s::inet, NOW())
+                    ON CONFLICT (mac_address) DO UPDATE 
+                    SET last_ip = EXCLUDED.last_ip,
+                        last_seen = NOW()
+                """, (mac, ip))
+        finally:
+            cur.close()
+
+    def ping_watchdog(self):
         current_time = time.time()
         if current_time - self.last_watchdog >= self.watchdog_interval:
-            try:
-                self.notifier.notify("WATCHDOG=1")
-                self.last_watchdog = current_time
-                logger.debug("Watchdog notification sent")
-            except Exception as e:
-                logger.warning(f"Watchdog notification warning (non-fatal): {e}")
-                # Don't exit on watchdog failures, just log them
-    
-    def acquire_lock(self):
-        """Try to acquire the lock file to prevent multiple instances."""
-        try:
-            self.lock_fd = open(self.lock_file, 'w')
-            fcntl.lockf(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            self.lock_fd.write(str(os.getpid()))
-            self.lock_fd.flush()
-            self.notifier.notify("STATUS=Lock acquired")
-            return True
-        except IOError:
-            logger.error("Another instance is already running")
-            self.notifier.notify("STATUS=Failed to acquire lock")
-            return False
-    
-    def release_lock(self):
-        """Release the lock file."""
-        try:
-            if hasattr(self, 'lock_fd') and not self.lock_fd.closed:
-                try:
-                    fcntl.lockf(self.lock_fd, fcntl.LOCK_UN)
-                except IOError:
-                    pass
-                self.lock_fd.close()
-            
-            if os.path.exists(self.lock_file):
-                try:
-                    os.unlink(self.lock_file)
-                except OSError:
-                    pass
-        except Exception as e:
-            logger.error(f"Error releasing lock: {e}")
-    
+            self.notifier.notify("WATCHDOG=1")
+            self.last_watchdog = current_time
+
     def handle_shutdown(self, signum, frame):
-        """Handle shutdown signals gracefully."""
-        logger.info("Received shutdown signal, cleaning up...")
-        self.notifier.notify("STATUS=Shutting down...")
+        self.logger.info("Received shutdown signal, cleaning up...")
         self.running = False
-        
-        if hasattr(self, '_db_conn') and self._db_conn:
-            try:
-                self._db_conn.close()
-            except:
-                pass
-        
-        self.release_lock()
-        logger.info("Scanner shutdown complete")
-        self.notifier.notify("STOPPING=1")
+        if self.db_conn:
+            self.db_conn.close()
+        self.logger.info("Scanner shutdown complete")
         sys.exit(0)
-    
-    def cleanup_existing_process(self):
-        """Find and cleanup any existing Netureon processes."""
-        try:
-            # Check lock file
-            if os.path.exists(self.lock_file):
-                try:
-                    with open(self.lock_file, 'r') as f:
-                        old_pid = int(f.read().strip())
-                        if psutil.pid_exists(old_pid):
-                            logger.info(f"Found existing Netureon process (PID: {old_pid})")
-                            try:
-                                old_process = psutil.Process(old_pid)
-                                old_process.terminate()
-                                old_process.wait(timeout=10)
-                            except (psutil.NoSuchProcess, psutil.TimeoutExpired):
-                                subprocess.run(['sudo', 'kill', '-9', str(old_pid)], 
-                                            check=False)
-                except Exception as e:
-                    logger.warning(f"Error reading lock file: {e}")
 
-            # Look for other instances
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    cmdline = proc.info['cmdline']
-                    if cmdline and 'net_scan.py' in ' '.join(cmdline) and proc.pid != os.getpid():
-                        logger.info(f"Found another Netureon process (PID: {proc.pid})")
-                        proc.terminate()
-                        try:
-                            proc.wait(timeout=10)
-                        except psutil.TimeoutExpired:
-                            proc.kill()
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-
-            # Clean up lock file
-            if os.path.exists(self.lock_file):
-                os.unlink(self.lock_file)
-            
-            time.sleep(2)
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error during process cleanup: {e}")
-            return False
-    
     def start_monitoring(self):
-        """Start the network monitoring loop."""
-        if not self.cleanup_existing_process():
-            logger.error("Failed to cleanup existing processes")
-            self.notifier.notify("STATUS=Failed to cleanup")
-            sys.exit(1)
-            
-        if not self.acquire_lock():
-            logger.error("Failed to acquire lock. Another instance may be running.")
-            self.notifier.notify("STATUS=Failed to start - lock exists")
-            sys.exit(1)
-            
-        self.running = True
-        self.notifier.notify("STATUS=Starting network monitoring...")
-        logger.info("Starting network monitoring...")
-        
         try:
-            from threading import Thread
-            webapp_thread = Thread(target=self.app.run, 
-                                kwargs={
-                                    'host': Config.WEB_HOST,
-                                    'port': Config.WEB_PORT,
-                                    'debug': Config.WEB_DEBUG,
-                                    'use_reloader': False
-                                })
-            webapp_thread.daemon = True
-            webapp_thread.start()
-            logger.info(f"Web interface started on {Config.WEB_HOST}:{Config.WEB_PORT}")
+            self.notifier.notify("READY=1")
             
-            # Notify systemd we're fully running
-            self.notifier.notify("STATUS=Running")
-            
+            if self.single_scan:
+                self.scan_network()
+                return
+                
             while self.running:
-                try:
-                    interval = int(os.getenv('SCAN_INTERVAL', 300))
-                    chunks = interval // self.watchdog_interval
-                    remainder = interval % self.watchdog_interval
-                    
-                    for _ in range(chunks):
-                        if not self.running:
-                            break
-                        time.sleep(self.watchdog_interval)
-                        self.ping_watchdog()
-                    
-                    if remainder and self.running:
-                        time.sleep(remainder)
-                        self.ping_watchdog()
-                    
+                self.scan_network()
+                self.ping_watchdog()
+                
+                # Sleep in smaller intervals to respond to shutdown faster
+                for _ in range(30):  # 5 minutes = 30 * 10 seconds
                     if not self.running:
                         break
-                        
-                    subnet = get_local_subnet()
-                    devices = self.scan_network(subnet)
-                    self._update_database(devices)
-                    self.ping_watchdog()
-                except Exception as e:
-                    logger.error(f"Error in main loop: {e}")
-                    if self.running:
-                        time.sleep(self.watchdog_interval)
-                        self.ping_watchdog()
-                        
-        finally:
-            self.release_lock()
-    
-    def scan_network(self, subnet):
-        """Scan the network using multiple methods."""
-        self.ping_watchdog()
-        try:
-            if not self.running:
-                return []
-                
-            logger.info(f"Starting network scan on subnet {subnet}")
-            devices = set()
-            
-            network = ipaddress.ip_network(subnet)
-            chunk_size = 32
-            total_chunks = (network.num_addresses + chunk_size - 1) // chunk_size
-            
-            for attempt in range(2):
-                for chunk_idx in range(total_chunks):
-                    if not self.running:
-                        return list(devices)
-                        
-                    start_ip = network[chunk_idx * chunk_size]
-                    end_ip = network[min((chunk_idx + 1) * chunk_size - 1, network.num_addresses - 1)]
-                    chunk_subnet = f"{start_ip}/{network.prefixlen}"
-                    
-                    arp = ARP(pdst=chunk_subnet)
-                    ether = Ether(dst="ff:ff:ff:ff:ff:ff")
-                    packet = ether/arp
-                    
-                    logger.debug(f"Scanning chunk {chunk_idx + 1}/{total_chunks} (attempt {attempt + 1})")
-                    result = srp(packet, timeout=1, verbose=0, inter=0.01, retry=1, multi=True)[0]
-                    
-                    for sent, received in result:
-                        devices.add((received.psrc, received.hwsrc))
-                    
+                    time.sleep(10)
                     self.ping_watchdog()
                 
-                if attempt < 1:
-                    time.sleep(0.5)
-                    self.ping_watchdog()
-            
-            try:
-                with os.popen('arp -n') as f:
-                    for line in f:
-                        if '(' in line or 'Address' in line:
-                            continue
-                        parts = line.strip().split()
-                        if len(parts) >= 3:
-                            ip, mac = parts[0], parts[2]
-                            if ip and mac and mac != '00:00:00:00:00:00':
-                                devices.add((ip, mac))
-            except Exception as e:
-                logger.warning(f"Failed to read system ARP cache: {e}")
-            
-            device_list = list(devices)
-            logger.info(f"Scan complete. Found {len(device_list)} devices")
-            self.ping_watchdog()
-            return device_list
-            
         except Exception as e:
-            logger.error(f"Error scanning network: {str(e)}", exc_info=True)
-            return []
-    
-    def _update_database(self, devices):
-        """Update the database with discovered devices."""
-        if not self.running:
-            return
-            
-        try:
-            if not hasattr(self, '_db_conn') or self._db_conn.closed:
-                self._db_conn = psycopg2.connect(**DB_CONFIG)
-            conn = self._db_conn
-            cur = conn.cursor()
-            
-            # Get current active devices
-            cur.execute("SELECT mac_address, status FROM known_devices WHERE status = 'active'")
-            active_devices = {row[0]: row[1] for row in cur.fetchall()}
-            
-            now = datetime.now()
-            
-            chunk_size = 5
-            for i in range(0, len(devices), chunk_size):
-                if not self.running:
-                    return
-                    
-                chunk = devices[i:i + chunk_size]
-                for ip, mac in chunk:
-                    if ip in ['127.0.0.1', '255.255.255.255'] or mac == 'ff:ff:ff:ff:ff:ff':
-                        continue
-                        
-                    profiler = DeviceProfiler(mac, ip)
-                    profile = profiler.profile()
-                    
-                    cur.execute("""
-                        SELECT mac_address FROM known_devices 
-                        WHERE mac_address = %s
-                    """, (mac,))
-                    device_exists = cur.fetchone()
-                    
-                    if device_exists:
-                        cur.execute("""
-                            UPDATE known_devices 
-                            SET last_ip = %s,
-                                last_seen = %s,
-                                status = 'active',
-                                open_ports = %s,
-                                hostname = %s,
-                                vendor = %s
-                            WHERE mac_address = %s
-                        """, (ip, now, profile.get('open_ports', []), 
-                             profile.get('hostname', 'Unknown'),
-                             profile.get('vendor', 'Unknown'), mac))
-                    else:
-                        cur.execute("""
-                            INSERT INTO new_devices 
-                            (mac_address, last_ip, first_seen, last_seen, 
-                             hostname, vendor, open_ports, reviewed)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, false)
-                            ON CONFLICT (mac_address) DO UPDATE 
-                            SET last_ip = EXCLUDED.last_ip,
-                                last_seen = EXCLUDED.last_seen,
-                                hostname = EXCLUDED.hostname,
-                                vendor = EXCLUDED.vendor,
-                                open_ports = EXCLUDED.open_ports
-                        """, (mac, ip, now, now, 
-                             profile.get('hostname', 'Unknown'),
-                             profile.get('vendor', 'Unknown'),
-                             profile.get('open_ports', [])))
-                    
-                    if mac in active_devices:
-                        del active_devices[mac]
-                    
-                    self.ping_watchdog()
-                    
-            for mac in active_devices:
-                cur.execute("""
-                    UPDATE known_devices 
-                    SET status = 'inactive'
-                    WHERE mac_address = %s
-                """, (mac,))
-                
-            conn.commit()
-            
-        except Exception as e:
-            logger.error(f"Database error: {str(e)}")
-            if 'conn' in locals():
-                conn.rollback()
-            raise
-        finally:
-            if 'cur' in locals():
-                cur.close()
+            self.logger.error(f"Error in monitoring: {str(e)}")
+            sys.exit(1)
 
-def run_single_scan():
-    """Run a single network scan and exit."""
-    scanner = NetworkScanner()
-    try:
-        subnet = get_local_subnet()
-        devices = scanner.scan_network(subnet)
-        scanner._update_database(devices)
-    except Exception as e:
-        logger.error(f"Error during single scan: {e}")
-        raise
-    finally:
-        if hasattr(scanner, '_db_conn') and scanner._db_conn:
-            scanner._db_conn.close()
-
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description='Netureon Network Scanner')
-    parser.add_argument('--scan-once', action='store_true',
-                       help='Run a single scan and exit')
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--scan-once', action='store_true', help='Perform single scan and exit')
     args = parser.parse_args()
     
-    if args.scan_once:
-        try:
-            run_single_scan()
-        except Exception as e:
-            logger.error(f"Fatal error: {str(e)}")
-            sys.exit(1)
-    else:
-        scanner = NetworkScanner()
-        try:
-            scanner.start_monitoring()
-        except KeyboardInterrupt:
-            scanner.handle_shutdown(signal.SIGINT, None)
-        except Exception as e:
-            logger.error(f"Fatal error: {str(e)}")
-            scanner.handle_shutdown(signal.SIGTERM, None)
-            raise
+    scanner = NetworkScanner(single_scan=args.scan_once)
+    scanner.start_monitoring()
