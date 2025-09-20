@@ -12,7 +12,6 @@ from logging.handlers import RotatingFileHandler
 import sdnotify
 from scapy.all import ARP, Ether, srp
 import psycopg2
-import signal
 from concurrent.futures import ThreadPoolExecutor
 import argparse
 from dotenv import load_dotenv
@@ -28,11 +27,14 @@ class NetworkScanner:
         self.last_watchdog = time.time()
         self.watchdog_interval = 30
         self.single_scan = single_scan
-        
-        # Set up signal handlers
-        signal.signal(signal.SIGTERM, self.handle_shutdown)
-        signal.signal(signal.SIGINT, self.handle_shutdown)
-        
+        self.db_config = {
+            'dbname': os.getenv('DB_NAME'),
+            'user': os.getenv('DB_USER'),
+            'password': os.getenv('DB_PASSWORD'),
+            'host': os.getenv('DB_HOST'),
+            'port': os.getenv('DB_PORT')
+        }
+        self.db_conn = None
         self.logger.info("Netureon Scanner v1.3.1 initialized")
 
     def setup_logging(self):
@@ -77,10 +79,22 @@ class NetworkScanner:
         
         return self.logger
 
+    def connect_db(self):
+        """Establish database connection"""
+        try:
+            if not self.db_conn or self.db_conn.closed:
+                self.db_conn = psycopg2.connect(**self.db_config)
+                self.db_conn.autocommit = False
+                self.logger.debug("Database connection established")
+        except Exception as e:
+            self.logger.error(f"Database connection failed: {e}")
+            raise
+
     def scan_network(self):
         """Perform network scan"""
         try:
             self.logger.info("Starting network scan...")
+            self.connect_db()  # Ensure DB connection is established
             self.ping_watchdog()
             
             devices = []
@@ -98,9 +112,16 @@ class NetworkScanner:
         except Exception as e:
             self.logger.error(f"Scan failed: {str(e)}")
             return False
+        finally:
+            if self.db_conn:
+                self.db_conn.close()
+                self.db_conn = None
 
     def process_devices(self, devices):
         """Process discovered devices and only add new ones to review"""
+        if not self.db_conn:
+            self.connect_db()
+            
         cur = self.db_conn.cursor()
         try:
             for ip, mac in devices:
