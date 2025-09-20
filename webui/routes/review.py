@@ -11,11 +11,10 @@ review = Blueprint('review', __name__)
 def review_page():
     """Display the review page with new devices."""
     try:
-        # Get new devices from database
         new_devices = Database.execute_query("""
             SELECT 
-                mac_address, 
-                hostname, 
+                hostname as device_name,  # Changed for clarity
+                mac_address,              # Keep MAC address separate
                 vendor, 
                 device_type,
                 last_ip,
