@@ -6,10 +6,31 @@ class EmailNotifier(BaseNotifier):
     def __init__(self):
         super().__init__()
 
-    def send_notification(self, subject, message):
-        """Send email notification."""
+    def is_configured(self):
+        """Check if email notifications are properly configured."""
         if self.settings.get('enable_email_notifications') != 'true':
             self.logger.info("Email notifications are disabled")
+            return False
+
+        required_settings = [
+            'smtp_server',
+            'smtp_port',
+            'smtp_username',
+            'smtp_password',
+            'smtp_from_address',
+            'smtp_to_address'
+        ]
+
+        missing = [s for s in required_settings if not self.settings.get(s)]
+        if missing:
+            self.logger.error(f"Email configuration incomplete. Missing: {', '.join(missing)}")
+            return False
+
+        return True
+
+    def send_notification(self, subject, message):
+        """Send email notification."""
+        if not self.is_configured():
             return False
 
         try:

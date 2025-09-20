@@ -7,10 +7,16 @@ class TelegramNotifier(BaseNotifier):
         self.bot_token = self.settings.get('telegram_bot_token')
         self.chat_id = self.settings.get('telegram_chat_id')
 
+    def is_configured(self):
+        """Check if Telegram notifications are properly configured."""
+        if not self.bot_token or not self.chat_id:
+            self.logger.warning("Telegram not configured - missing bot_token or chat_id")
+            return False
+        return True
+
     def send_notification(self, message):
         """Send message via Telegram."""
-        if not self.bot_token or not self.chat_id:
-            self.logger.warning("Telegram not configured - skipping notification")
+        if not self.is_configured():
             return False
 
         try:
