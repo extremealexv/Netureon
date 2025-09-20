@@ -1,5 +1,5 @@
-from netguard.alerts.daemon import AlertDaemon
-from netguard.logging.logger import setup_logging
+from netureon.alerts.daemon import AlertDaemon
+from netureon.logging.logger import setup_logging
 import signal
 import sys
 
