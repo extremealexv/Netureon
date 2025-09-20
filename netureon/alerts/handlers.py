@@ -65,20 +65,15 @@ class DeviceHandler:
             logger.error(f"Failed to store profile for {mac}: {e}")
 
     def profile_device(self, mac, ip, timestamp):
-        """Profile a device and store results."""
-        logger.info(f"Profiling device: MAC={mac}, IP={ip}")
+        """Profile a device and send notifications."""
         try:
             profile = self.profiler.profile_device(ip, mac)
-            if not profile:
-                return None
+            if profile:
+                # Store profile
+                self.store_device_profile(mac, profile)
                 
-            with psycopg2.connect(**self.db_config) as conn:
-                with conn.cursor() as cursor:
-                    # Store profile
-                    self.store_device_profile(mac, profile)
-                    
-                    # Create alert
-                    details = f"""New device detected:
+                # Create alert with profile info
+                details = f"""New device detected:
 MAC: {mac}
 IP: {ip}
 Hostname: {profile.get('hostname', 'Unknown')}
@@ -86,21 +81,22 @@ Vendor: {profile.get('vendor', 'Unknown')}
 Type: {profile.get('device_type', 'Unknown')}
 Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('open_ports', []))}"""
 
-                    cursor.execute("""
-                        INSERT INTO alerts 
-                        (device_id, alert_type, detected_at, details, severity)
-                        VALUES (%s::macaddr, 'new_device', NOW(), %s, 'medium')
-                        RETURNING id
-                    """, (mac, details))
-                    
-                    alert_id = cursor.fetchone()[0]
-                    conn.commit()
-                    
-                    logger.info(f"Created alert {alert_id} for device {mac}")
-                    return alert_id
-                    
+                alert_id = self.create_alert(mac, ip, details, timestamp)
+                
+                # Send notifications immediately
+                if alert_id:
+                    self.send_notifications(
+                        alert_id, 
+                        "NetGuard Alert: New Device Detected", 
+                        details
+                    )
+                
+                return alert_id
+            
+            return None
+            
         except Exception as e:
-            logger.error(f"Error profiling device {mac}: {str(e)}")
+            self.logger.error(f"Error profiling device {mac}: {e}")
             return None
 
     def process_new_device(self, mac, ip, timestamp):

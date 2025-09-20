@@ -2,20 +2,16 @@ from .base import BaseNotifier
 import requests
 
 class TelegramNotifier(BaseNotifier):
-    def __init__(self):
-        super().__init__()
-        self.bot_token = self.settings.get('telegram_bot_token')
-        self.chat_id = self.settings.get('telegram_chat_id')
-        self.enabled = self.settings.get('enable_telegram_notifications') == 'true'
-
     def is_configured(self):
         """Check if Telegram notifications are properly configured."""
-        if not self.enabled:
-            self.logger.info("Telegram notifications are disabled")
+        settings = self.refresh_settings()  # Get fresh settings
+        
+        if not settings['enable_telegram_notifications']:
+            self.logger.info("Telegram notifications are disabled in settings")
             return False
             
-        if not self.bot_token or not self.chat_id:
-            self.logger.warning("Telegram not configured - missing bot_token or chat_id")
+        if not settings['telegram_bot_token'] or not settings['telegram_chat_id']:
+            self.logger.warning("Telegram configuration incomplete - missing bot_token or chat_id")
             return False
             
         return True
@@ -26,9 +22,9 @@ class TelegramNotifier(BaseNotifier):
             return False
 
         try:
-            url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+            url = f"https://api.telegram.org/bot{self.settings['telegram_bot_token']}/sendMessage"
             data = {
-                "chat_id": self.chat_id,
+                "chat_id": self.settings['telegram_chat_id'],
                 "text": message,
                 "parse_mode": "HTML"
             }

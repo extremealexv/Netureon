@@ -4,45 +4,37 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Settings:
-    _instance = None
-    _settings_cache = {}
-    
-    @classmethod
-    def get_instance(cls):
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+    def __init__(self):
+        self._settings_cache = {}
 
-    def get_db_config(self):
-        """Get database configuration settings."""
-        return {
-            'dbname': os.getenv('DB_NAME', 'netureon'),
-            'user': os.getenv('DB_USER', 'netureon'),
-            'password': os.getenv('DB_PASSWORD', ''),
-            'host': os.getenv('DB_HOST', 'localhost'),
-            'port': os.getenv('DB_PORT', '5432')
-        }
-    
     def get_setting(self, key, default=None):
-        """Get setting from cache or environment."""
-        # First check cache
+        """Get setting with proper boolean conversion."""
         if key in self._settings_cache:
             return self._settings_cache[key]
+
+        try:
+            from webui.models.config import Configuration
+            value = Configuration.get_setting(key, default)
             
-        # Then check environment variables
-        env_value = os.getenv(key.upper())
-        if env_value is not None:
-            self._settings_cache[key] = env_value
-            return env_value
+            # Convert string boolean values to actual booleans
+            if isinstance(value, str):
+                if value.lower() == 'true':
+                    value = True
+                elif value.lower() == 'false':
+                    value = False
+                    
+            self._settings_cache[key] = value
+            return value
             
-        # Return default if not found
-        return default
-            
+        except Exception as e:
+            self.logger.error(f"Error getting setting {key}: {e}")
+            return default
+
     def get_notification_settings(self):
-        """Get all notification related settings."""
+        """Get notification settings with proper boolean flags."""
         return {
-            'enable_email_notifications': self.get_setting('enable_email_notifications', 'false'),
-            'enable_telegram_notifications': self.get_setting('enable_telegram_notifications', 'false'),
+            'enable_email_notifications': self.get_setting('enable_email_notifications', False),
+            'enable_telegram_notifications': self.get_setting('enable_telegram_notifications', False),
             'smtp_server': self.get_setting('smtp_server'),
             'smtp_port': self.get_setting('smtp_port', '587'),
             'smtp_username': self.get_setting('smtp_username'),
