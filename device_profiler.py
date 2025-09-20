@@ -50,10 +50,15 @@ class DeviceProfiler:
             except Exception as e:
                 self.logger.info(f"   • Vendor lookup failed: {e}")
 
-            # Scan for open ports
+            # Scan for open ports with sudo
             self.logger.info("3. Scanning ports...")
             try:
-                scan_result = self.nm.scan(ip, arguments='-sS -sV -T4 -F --max-retries 2')
+                # Use sudo for nmap scan
+                scan_result = self.nm.scan(
+                    ip, 
+                    arguments='-sS -sV -T4 -F --max-retries 2',
+                    sudo=True
+                )
                 if ip in self.nm.all_hosts():
                     host = self.nm[ip]
                     
@@ -75,6 +80,7 @@ class DeviceProfiler:
                 
             except Exception as e:
                 self.logger.error(f"   • Port scan failed: {e}")
+                # Still continue with partial profile
 
             self.logger.info("=== Device profiling completed ===")
             return profile
@@ -91,12 +97,6 @@ class DeviceProfiler:
         if 80 in port_numbers or 443 in port_numbers:
             if 3389 in port_numbers or 445 in port_numbers:
                 return 'Windows PC'
-            elif 22 in port_numbers:
-                return 'Linux Server'
-            return 'Web Server'
-        elif 22 in port_numbers:
-            if any(p in port_numbers for p in [161, 162, 23]):
-                return 'Network Device'
             return 'Linux Device'
         elif 8080 in port_numbers or 8443 in port_numbers:
             return 'IoT Device'
