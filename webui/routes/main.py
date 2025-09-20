@@ -97,23 +97,24 @@ def handle_delete_action(selected_devices):
     deleted = 0
     for mac in selected_devices:
         try:
+            mac_clean = mac.strip().lower()
             # Delete from known_devices and cleanup related data
             queries = [
                 # Remove any existing alerts
                 ("""
                     DELETE FROM alerts 
-                    WHERE device_id = :mac
-                """, {"mac": mac}),
+                    WHERE device_id = %s::macaddr
+                """, (mac_clean,)),
                 # Remove from discovery_log
                 ("""
                     DELETE FROM discovery_log 
-                    WHERE mac_address = :mac
-                """, {"mac": mac}),
+                    WHERE mac_address = %s::macaddr
+                """, (mac_clean,)),
                 # Finally remove from known_devices
                 ("""
                     DELETE FROM known_devices 
-                    WHERE mac_address = :mac
-                """, {"mac": mac})
+                    WHERE mac_address = %s::macaddr
+                """, (mac_clean,))
             ]
             
             # Execute all cleanup in a single transaction
