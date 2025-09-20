@@ -4,6 +4,7 @@ import requests
 import time
 import os
 from datetime import datetime, timedelta
+import logging
 
 def main():
     # Connect to the PostgreSQL database
@@ -403,6 +404,41 @@ def check_alerts():
 
     except Exception as e:
         print(f"Database error: {e}")
+
+def handle_new_device(device_info):
+    """Handle new device detection with proper logging"""
+    logger = logging.getLogger('netureon')
+    
+    try:
+        notifications_sent = []
+        
+        # Try email notification
+        email_notifier = EmailNotifier()
+        if email_notifier.config:
+            email_sent = email_notifier.notify_new_device(
+                device_info['mac'],
+                device_info['ip'],
+                device_info['timestamp']
+            )
+            notifications_sent.append(f"Email: {'✓' if email_sent else '✗'}")
+        
+        # Try Telegram notification
+        telegram_notifier = TelegramNotifier()
+        if telegram_notifier.config:
+            telegram_sent = telegram_notifier.notify_new_device(
+                device_info['mac'],
+                device_info['ip'],
+                device_info['timestamp']
+            )
+            notifications_sent.append(f"Telegram: {'✓' if telegram_sent else '✗'}")
+        
+        if notifications_sent:
+            logger.info(f"Notifications sent: {', '.join(notifications_sent)}")
+        else:
+            logger.warning("No notification methods configured")
+            
+    except Exception as e:
+        logger.error(f"Error in notification handler: {str(e)}")
 
 if __name__ == "__main__":
     print("Alert daemon started...")

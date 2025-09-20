@@ -1,8 +1,8 @@
 """Email notification system for Netureon."""
 import smtplib
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from webui.models.config import Configuration
+import logging
+from ..models.config import Config
 
 
 class EmailNotifier:
@@ -10,63 +10,37 @@ class EmailNotifier:
 
     def __init__(self):
         """Initialize email notifier with configuration."""
-        self._init_done = False
-        self.smtp_server = None
-        self.smtp_port = 587
-        self.smtp_username = None
-        self.smtp_password = None
-        self.from_address = None
-        self.to_address = None
+        self.logger = logging.getLogger('netureon')
+        self.config = Config.get_email_config()
         
-    def _init_if_needed(self):
-        """Initialize settings if not already done."""
-        if self._init_done:
-            return
-            
-        self.smtp_server = Configuration.get_setting('smtp_server')
-        self.smtp_port = int(Configuration.get_setting('smtp_port', '587'))
-        self.smtp_username = Configuration.get_setting('smtp_username')
-        self.smtp_password = Configuration.get_setting('smtp_password')
-        self.from_address = Configuration.get_setting('smtp_from_address')
-        self.to_address = Configuration.get_setting('smtp_to_address')
-        self._init_done = True
-
-    def notify(self, subject: str, message: str) -> None:
-        """Send an email notification."""
-        try:
-            from webui.models.config import Configuration
-            
-            # First check if notifications are enabled
-            if Configuration.get_setting('enable_email_notifications') != 'true':
-                print("Email notifications are disabled")
-                return
-            
-            # Then initialize if needed
-            self._init_if_needed()
-
-            if not all([self.smtp_server, self.smtp_username, self.smtp_password,
-                       self.from_address, self.to_address]):
-                print("Email settings are incomplete")
-                return
-        except Exception as e:
-            print(f"Failed to check notification settings: {e}")
+        if not self.config:
+            self.logger.error("Email configuration not found in database")
             return
 
-        msg = MIMEMultipart()
-        msg['From'] = self.from_address
-        msg['To'] = self.to_address
-        msg['Subject'] = f'Netureon Alert: {subject}'
-
-        msg.attach(MIMEText(message, 'plain'))
+    def send_email(self, subject, body):
+        """Send email using configuration from database"""
+        if not self.config:
+            self.logger.error("Email not configured - skipping notification")
+            return False
 
         try:
-            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            msg = MIMEText(body)
+            msg['Subject'] = subject
+            msg['From'] = self.config['email_from']
+            msg['To'] = self.config['email_to']
+
+            server = smtplib.SMTP(self.config['smtp_server'], self.config['smtp_port'])
             server.starttls()
-            server.login(self.smtp_username, self.smtp_password)
+            server.login(self.config['smtp_user'], self.config['smtp_password'])
             server.send_message(msg)
             server.quit()
+            
+            self.logger.info("Email sent successfully")
+            return True
+            
         except Exception as e:
-            print(f'Failed to send email notification: {e}')
+            self.logger.error(f"Failed to send email: {str(e)}")
+            return False
 
     async def notify_new_device_detected(self, device_info: dict) -> None:
         """Notify about new device detection."""
