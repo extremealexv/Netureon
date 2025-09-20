@@ -7,12 +7,11 @@ Type=simple
 User=orangepi
 Group=orangepi
 WorkingDirectory=/home/orangepi/Netureon
-Environment=PYTHONPATH=/home/orangepi/Netureon
 Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH
-ExecStart=/home/orangepi/Netureon/.venv/bin/python alert_daemon.py
+Environment=PYTHONPATH=/home/orangepi/Netureon
+ExecStart=/home/orangepi/Netureon/.venv/bin/python3 /home/orangepi/Netureon/alert_daemon.py
 Restart=always
-RestartSec=30
-StartLimitBurst=3
+RestartSec=10s
 
 [Install]
 WantedBy=multi-user.target
