@@ -3,8 +3,9 @@ from .handlers import DeviceHandler
 from .notifiers.telegram import TelegramNotifier
 from .notifiers.email import EmailNotifier
 import time
-import shutil
+import os
 import subprocess
+from pathlib import Path
 
 logger = setup_logging('netureon.daemon')
 
@@ -17,25 +18,55 @@ class AlertDaemon:
         self.running = True
         self.check_interval = 10  # seconds
 
+    def _find_nmap(self):
+        """Find nmap executable in system paths."""
+        possible_paths = [
+            '/usr/bin/nmap',
+            '/usr/local/bin/nmap',
+            '/bin/nmap',
+            '/usr/sbin/nmap'
+        ]
+        
+        for path in possible_paths:
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                return path
+        return None
+
     def _check_dependencies(self):
         """Check if required system dependencies are available."""
         try:
-            # Try to execute nmap directly to check its availability
-            subprocess.run(['nmap', '--version'], 
-                         stdout=subprocess.PIPE, 
-                         stderr=subprocess.PIPE,
-                         check=True)
-            logger.info("nmap dependency check passed")
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            # Try to find nmap executable
+            nmap_path = self._find_nmap()
+            if not nmap_path:
+                raise FileNotFoundError("nmap executable not found in system paths")
+
+            # Test nmap execution
+            result = subprocess.run(
+                [nmap_path, '--version'],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    result.returncode, 
+                    [nmap_path, '--version']
+                )
+
+            logger.info(f"Found nmap at: {nmap_path}")
+            # Store path for later use
+            os.environ['NMAP_PATH'] = nmap_path
+            
+        except FileNotFoundError as e:
+            logger.error(f"nmap not found: {str(e)}")
+            logger.error("Please install nmap: sudo apt-get install nmap")
+            raise SystemError("Required dependency 'nmap' not found")
+        except subprocess.CalledProcessError as e:
             logger.error(f"nmap check failed: {str(e)}")
-            # Try to get more detailed error information
-            paths = subprocess.run(['which', 'nmap'], 
-                                stdout=subprocess.PIPE, 
-                                stderr=subprocess.PIPE,
-                                text=True)
-            logger.error(f"nmap path check result: {paths.stdout}")
-            logger.error(f"Current PATH: {subprocess.run(['echo', '$PATH'], stdout=subprocess.PIPE, text=True).stdout}")
-            raise SystemError("Required dependency 'nmap' not found or not executable")
+            logger.error(f"Command output: {e.output}")
+            raise SystemError("nmap is not working properly")
+        except Exception as e:
+            logger.error(f"Unexpected error checking dependencies: {str(e)}")
+            raise
 
     def run(self):
         """Main daemon loop."""
