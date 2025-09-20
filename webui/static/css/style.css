@@ -1,0 +1,13 @@
+/* ...existing code... */
+.list-unstyled {
+    padding-left: 0;
+    list-style: none;
+    margin-bottom: 0.5rem;
+}
+
+.list-unstyled li {
+    padding: 2px 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+/* ...existing code... */

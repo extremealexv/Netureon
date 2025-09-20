@@ -21,22 +21,24 @@ def main_page():
             handle_delete_action(selected_devices)
     
     known_hosts = Database.execute_query("""
-        SELECT k.device_name, 
-               k.mac_address::text, 
-               k.device_type, 
-               k.notes, 
-               k.last_seen, 
-               k.last_ip::text,
-               CASE 
-                   WHEN k.last_seen > NOW() - INTERVAL '5 minutes' THEN TRUE
-                   ELSE EXISTS(
-                       SELECT 1 FROM discovery_log d 
-                       WHERE d.mac_address::macaddr = k.mac_address::macaddr 
-                       AND d.timestamp > NOW() - INTERVAL '5 minutes'
-                   )
-               END as is_active
+        SELECT 
+            k.hostname,
+            k.mac_address,
+            k.vendor,
+            k.device_type,
+            k.last_ip,
+            k.first_seen,
+            k.last_seen,
+            k.risk_level,
+            k.notes,
+            COALESCE(k.open_ports, '[]'::jsonb) as open_ports,
+            EXISTS(
+                SELECT 1 FROM alerts a 
+                WHERE a.device_id = k.mac_address 
+                AND a.status = 'new'
+            ) as has_alerts
         FROM known_devices k
-        ORDER BY k.last_seen DESC NULLS LAST
+        ORDER BY k.last_seen DESC
     """)
     
     new_device_count = Database.execute_query(
