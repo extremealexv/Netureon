@@ -5,8 +5,41 @@ import time
 import os
 from datetime import datetime, timedelta
 import logging
+from logging.handlers import RotatingFileHandler
 from device_profiler import DeviceProfiler
 from webui.models.config import Configuration
+
+# Set up logging
+def setup_logging():
+    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    
+    log_file = os.path.join(log_dir, 'alert_daemon.log')
+    
+    handler = RotatingFileHandler(
+        log_file,
+        maxBytes=10*1024*1024,
+        backupCount=5,
+        delay=False,
+        mode='a'
+    )
+    
+    formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+    
+    logger = logging.getLogger('netureon')
+    logger.setLevel(logging.INFO)
+    
+    # Remove any existing handlers
+    logger.handlers = []
+    
+    logger.addHandler(handler)
+    return logger
+
+logger = setup_logging()
 
 def main():
     # Connect to the PostgreSQL database
@@ -458,7 +491,7 @@ def check_alerts():
                     WHEN 'new_device' THEN 2
                     ELSE 3
                 END,
-                detected_at DESC;
+                detected_at DESC
         """)
         
         rows = cursor.fetchall()
