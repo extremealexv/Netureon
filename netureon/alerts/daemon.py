@@ -1,7 +1,7 @@
 from ..logging.logger import setup_logging
 from .handlers import DeviceHandler
-from .notifiers.email import EmailNotifier
 from .notifiers.telegram import TelegramNotifier
+from .notifiers.email import EmailNotifier
 import time
 
 logger = setup_logging('netureon.daemon')
