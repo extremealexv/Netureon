@@ -3,6 +3,7 @@
 from flask import current_app
 from flask_sqlalchemy import SQLAlchemy
 import psycopg2
+import psycopg2.extras
 import logging
 from contextlib import contextmanager
 
@@ -28,20 +29,29 @@ class Database:
         connection = None
         try:
             connection = Database.get_connection()
-            cursor = connection.cursor()
+            # Use DictCursor for better parameter handling
+            cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
             
             results = []
             for query, params in queries:
                 logger.debug(f"Executing query: {query}")
                 logger.debug(f"Parameters: {params}")
                 
-                cursor.execute(query, params)
+                # Convert tuple parameters to list
+                if isinstance(params, tuple):
+                    params = list(params)
+                
                 try:
-                    result = cursor.fetchall()
-                    results.append(result)
-                except psycopg2.ProgrammingError:
-                    # No results to fetch
-                    results.append(None)
+                    cursor.execute(query, params)
+                    try:
+                        result = cursor.fetchall()
+                        results.append(result)
+                    except psycopg2.ProgrammingError:
+                        results.append(None)
+                except Exception as qe:
+                    logger.error(f"Query execution failed: {str(qe)}")
+                    logger.error(f"Query: {cursor.query.decode()}")
+                    raise
             
             connection.commit()
             return results
@@ -54,3 +64,14 @@ class Database:
         finally:
             if connection:
                 connection.close()
+
+    @staticmethod
+    def execute_query(query, params=None):
+        """Execute a single query."""
+        with Database.get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                cur.execute(query, params)
+                try:
+                    return cur.fetchall()
+                except psycopg2.ProgrammingError:
+                    return None
