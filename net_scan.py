@@ -100,28 +100,68 @@ class NetworkScanner:
             return False
 
     def process_devices(self, devices):
-        """Process found devices and update database"""
+        """Process discovered devices and only add new ones to review"""
+        cur = self.db_conn.cursor()
         try:
-            with psycopg2.connect(
-                dbname=os.getenv('DB_NAME'),
-                user=os.getenv('DB_USER'),
-                password=os.getenv('DB_PASSWORD'),
-                host=os.getenv('DB_HOST'),
-                port=os.getenv('DB_PORT')
-            ) as conn:
-                with conn.cursor() as cur:
-                    for ip, mac in devices:
+            for ip, mac in devices:
+                # First check if device is already known
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT 1 FROM known_devices 
+                        WHERE mac_address = %s::macaddr
+                    )
+                """, (mac,))
+                is_known = cur.fetchone()[0]
+
+                if not is_known:
+                    # Then check if it's already in review
+                    cur.execute("""
+                        SELECT EXISTS (
+                            SELECT 1 FROM new_devices 
+                            WHERE mac_address = %s::macaddr
+                        )
+                    """, (mac,))
+                    in_review = cur.fetchone()[0]
+
+                    if not in_review:
+                        # Only add to new_devices if truly new
                         cur.execute("""
                             INSERT INTO new_devices (mac_address, last_ip, last_seen)
                             VALUES (%s::macaddr, %s::inet, NOW())
-                            ON CONFLICT (mac_address) DO UPDATE 
-                            SET last_ip = EXCLUDED.last_ip,
-                                last_seen = NOW()
                         """, (mac, ip))
-                    conn.commit()
+                        self.logger.info(f"New device detected: MAC={mac}, IP={ip}")
+                    else:
+                        # Just update last seen for existing review devices
+                        cur.execute("""
+                            UPDATE new_devices 
+                            SET last_ip = %s::inet,
+                                last_seen = NOW()
+                            WHERE mac_address = %s::macaddr
+                        """, (ip, mac))
+
+                # Update known devices activity
+                cur.execute("""
+                    UPDATE known_devices 
+                    SET last_ip = %s::inet,
+                        last_seen = NOW(),
+                        status = 'active'
+                    WHERE mac_address = %s::macaddr
+                """, (ip, mac))
+
+            # Mark devices not seen in this scan as inactive
+            cur.execute("""
+                UPDATE known_devices
+                SET status = 'inactive'
+                WHERE last_seen < NOW() - INTERVAL '5 minutes'
+            """)
+            
+            self.db_conn.commit()
         except Exception as e:
-            self.logger.error(f"Database error: {str(e)}")
+            self.logger.error(f"Error processing devices: {str(e)}")
+            self.db_conn.rollback()
             raise
+        finally:
+            cur.close()
 
     def ping_watchdog(self):
         """Send watchdog notification to systemd"""
