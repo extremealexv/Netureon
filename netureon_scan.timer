@@ -1,14 +1,13 @@
 [Unit]
-Description=Netureon Network Scanner Timer
-Documentation=https://github.com/extremealexv/Netureon
+Description=Run Netureon network scan every 5 minutes
 
 [Timer]
-# Wait 60s after boot before first scan
-OnBootSec=60
-# Default interval is 15 minutes, can be overridden in environment file
-OnUnitActiveSec=900s
-# Randomize start time within 60s to prevent resource spikes in large deployments
-RandomizedDelaySec=60
+# Wait 1 minute after boot before first scan
+OnBootSec=1min
+# Run the scan every 5 minutes
+OnUnitActiveSec=5min
+# Ensure the timer triggers with an accuracy of 1 second
+AccuracySec=1s
 # Ensure timer is persistent across reboots
 Persistent=true
 
