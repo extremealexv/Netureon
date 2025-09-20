@@ -42,3 +42,35 @@ class Database:
             logger.error(f"Query: {query}")
             logger.error(f"Params: {params}")
             raise
+
+    @staticmethod
+    def execute_transaction(queries):
+        """Execute multiple queries in a transaction."""
+        connection = None
+        try:
+            connection = Database.get_connection()
+            cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            
+            results = []
+            for query, params in queries:
+                logger.debug(f"Executing query: {query}")
+                logger.debug(f"Parameters: {params}")
+                
+                cursor.execute(query, params)
+                try:
+                    result = cursor.fetchall()
+                    results.append(result)
+                except psycopg2.ProgrammingError:
+                    results.append(None)
+            
+            connection.commit()
+            return results
+            
+        except Exception as e:
+            logger.error(f"Transaction failed: {str(e)}")
+            if connection:
+                connection.rollback()
+            raise
+        finally:
+            if connection:
+                connection.close()
