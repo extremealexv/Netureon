@@ -11,6 +11,8 @@ Environment=PATH=/home/orangepi/Netureon/.venv/bin:$PATH
 Environment=PYTHONUNBUFFERED=1
 Environment=NOTIFY_SOCKET=/run/systemd/notify
 ExecStart=/home/orangepi/Netureon/.venv/bin/python3 /home/orangepi/Netureon/net_scan.py
+StandardOutput=append:/home/orangepi/Netureon/logs/netureon.log
+StandardError=append:/home/orangepi/Netureon/logs/netureon.log
 WatchdogSec=60s
 Restart=always
 RestartSec=10s
