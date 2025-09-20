@@ -6,12 +6,18 @@ class TelegramNotifier(BaseNotifier):
         super().__init__()
         self.bot_token = self.settings.get('telegram_bot_token')
         self.chat_id = self.settings.get('telegram_chat_id')
+        self.enabled = self.settings.get('enable_telegram_notifications') == 'true'
 
     def is_configured(self):
         """Check if Telegram notifications are properly configured."""
+        if not self.enabled:
+            self.logger.info("Telegram notifications are disabled")
+            return False
+            
         if not self.bot_token or not self.chat_id:
             self.logger.warning("Telegram not configured - missing bot_token or chat_id")
             return False
+            
         return True
 
     def send_notification(self, message):
