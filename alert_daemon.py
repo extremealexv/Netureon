@@ -250,12 +250,13 @@ Status: Profiling in progress...
 
 def check_for_unknown_devices():
     """Check for new devices and profile them."""
-    logger.info("Checking for unknown devices...")
+    logger.info("=== Starting device check cycle ===")
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         
         # Get only truly new devices without profiles
+        logger.info("Querying for new devices...")
         cursor.execute("""
             SELECT DISTINCT ON (nd.mac_address)
                 nd.mac_address::text,
@@ -269,18 +270,28 @@ def check_for_unknown_devices():
         
         new_devices = cursor.fetchall()
         if new_devices:
-            logger.info(f"Found {len(new_devices)} new devices to profile")
+            logger.info(f"Found {len(new_devices)} new devices to process:")
+            for mac, ip, _ in new_devices:
+                logger.info(f"  • MAC: {mac}, IP: {ip}")
             
             profiler = DeviceProfiler()
+            logger.info("Starting device profiling process...")
             
             for mac, ip, timestamp in new_devices:
                 try:
-                    # Profile device
-                    logger.info(f"Starting profile for MAC={mac}, IP={ip}")
+                    logger.info(f"\nProcessing device: MAC={mac}, IP={ip}")
+                    logger.info("1. Starting device profiling...")
                     profile = profiler.profile_device(ip, mac)
                     
                     if profile:
+                        logger.info("2. Profile results:")
+                        logger.info(f"   • Hostname: {profile.get('hostname', 'Unknown')}")
+                        logger.info(f"   • Vendor: {profile.get('vendor', 'Unknown')}")
+                        logger.info(f"   • Type: {profile.get('device_type', 'Unknown')}")
+                        logger.info(f"   • Open Ports: {profile.get('open_ports', [])}")
+                        
                         # Store profile
+                        logger.info("3. Storing device profile...")
                         ports_json = json.dumps(profile.get('open_ports', []))
                         cursor.execute("""
                             INSERT INTO device_profiles 
@@ -294,20 +305,21 @@ def check_for_unknown_devices():
                                 last_updated = NOW()
                         """, (
                             mac,
-                            profile['hostname'],
-                            profile['vendor'],
-                            profile['device_type'],
+                            profile.get('hostname', 'Unknown'),
+                            profile.get('vendor', 'Unknown'),
+                            profile.get('device_type', 'Unknown'),
                             ports_json
                         ))
                         
-                        # Create alert
+                        # Create alert with profile info
+                        logger.info("4. Creating alert...")
                         details = f"""New device detected:
 MAC: {mac}
 IP: {ip}
-Hostname: {profile['hostname']}
-Vendor: {profile['vendor']}
-Type: {profile['device_type']}
-Open Ports: {', '.join(str(p['port']) for p in profile['open_ports'])}"""
+Hostname: {profile.get('hostname', 'Unknown')}
+Vendor: {profile.get('vendor', 'Unknown')}
+Type: {profile.get('device_type', 'Unknown')}
+Open Ports: {', '.join(str(p['port']) for p in profile.get('open_ports', []))}"""
 
                         cursor.execute("""
                             INSERT INTO alerts 
@@ -318,26 +330,39 @@ Open Ports: {', '.join(str(p['port']) for p in profile['open_ports'])}"""
                         
                         alert_id = cursor.fetchone()[0]
                         conn.commit()
+                        logger.info(f"   • Alert created with ID: {alert_id}")
                         
-                        # Send notifications immediately
+                        # Send notifications
+                        logger.info("5. Sending notifications...")
                         email_sent = send_email("NetGuard Alert: New Device Detected", details)
-                        telegram_sent = send_telegram(details)
+                        logger.info(f"   • Email notification: {'✓' if email_sent else '✗'}")
                         
-                        logger.info(f"Device {mac} processed - Email: {'✓' if email_sent else '✗'}, "
-                                  f"Telegram: {'✓' if telegram_sent else '✗'}")
+                        telegram_sent = send_telegram(details)
+                        logger.info(f"   • Telegram notification: {'✓' if telegram_sent else '✗'}")
+                        
+                        logger.info(f"Device {mac} processing completed successfully")
+                    else:
+                        logger.error(f"Profile results empty for device {mac}")
                     
                 except Exception as e:
-                    logger.error(f"Error processing device {mac}: {str(e)}")
+                    logger.error(f"Error processing device {mac}:")
+                    logger.error(f"Error details: {str(e)}")
                     conn.rollback()
                     continue
 
+        else:
+            logger.info("No new devices found requiring profiling")
+
     except Exception as e:
         logger.error(f"Error in check_for_unknown_devices: {str(e)}")
+        if 'conn' in locals():
+            conn.rollback()
     finally:
         if 'cursor' in locals():
             cursor.close()
         if 'conn' in locals():
             conn.close()
+        logger.info("=== Device check cycle completed ===\n")
 
 last_email_time = None
 email_cooldown = 300  # 5 minutes between email attempts

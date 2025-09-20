@@ -17,7 +17,7 @@ class DeviceProfiler:
 
     def profile_device(self, ip, mac):
         """Profile a device by IP and MAC address"""
-        self.logger.info(f"Starting device profiling - IP: {ip}, MAC: {mac}")
+        self.logger.info(f"\n=== Starting device profiling for {ip} ({mac}) ===")
         
         profile = {
             'hostname': 'Unknown',
@@ -28,49 +28,52 @@ class DeviceProfiler:
         
         try:
             # Try to get hostname
+            self.logger.info("1. Resolving hostname...")
             try:
                 profile['hostname'] = socket.gethostbyaddr(ip)[0]
-            except socket.herror:
-                self.logger.debug(f"Could not resolve hostname for {ip}")
+                self.logger.info(f"   • Hostname resolved: {profile['hostname']}")
+            except socket.herror as e:
+                self.logger.info(f"   • Hostname resolution failed: {e}")
 
             # Try to get vendor from MAC
+            self.logger.info("2. Looking up vendor...")
             try:
                 profile['vendor'] = self.mac_lookup.lookup(mac)
-                self.logger.info(f"Found vendor for {mac}: {profile['vendor']}")
+                self.logger.info(f"   • Vendor found: {profile['vendor']}")
             except Exception as e:
-                self.logger.warning(f"Vendor lookup failed for MAC {mac}: {e}")
+                self.logger.info(f"   • Vendor lookup failed: {e}")
 
             # Scan for open ports
+            self.logger.info("3. Scanning ports...")
             try:
                 scan_result = self.nm.scan(ip, arguments='-sS -sV -T4 -F --max-retries 2')
                 if ip in self.nm.all_hosts():
                     host = self.nm[ip]
                     
-                    ports = []
                     for proto in host.all_protocols():
                         for port in host[proto].keys():
                             service = host[proto][port]
                             if service['state'] == 'open':
-                                ports.append({
+                                port_info = {
                                     'port': port,
                                     'service': service.get('name', 'unknown'),
                                     'version': service.get('version', '')
-                                })
+                                }
+                                profile['open_ports'].append(port_info)
+                                self.logger.info(f"   • Found open port: {port} ({service.get('name', 'unknown')})")
                     
-                    profile['open_ports'] = ports
-                    
-                    # Determine device type based on open ports
-                    profile['device_type'] = self._determine_device_type(ports)
-                    
-                self.logger.info(f"Port scan complete for {ip}")
+                    # Determine device type
+                    profile['device_type'] = self._determine_device_type(profile['open_ports'])
+                    self.logger.info(f"   • Determined device type: {profile['device_type']}")
                 
             except Exception as e:
-                self.logger.error(f"Port scan failed for {ip}: {e}")
+                self.logger.error(f"   • Port scan failed: {e}")
 
+            self.logger.info("=== Device profiling completed ===")
             return profile
 
         except Exception as e:
-            self.logger.error(f"Device profiling failed for {ip}: {e}")
+            self.logger.error(f"Device profiling failed: {e}")
             return profile
 
     def _determine_device_type(self, ports):
