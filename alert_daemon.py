@@ -257,73 +257,79 @@ def check_for_unknown_devices():
         
         # Get only truly new devices without profiles
         cursor.execute("""
-            SELECT 
+            SELECT DISTINCT ON (nd.mac_address)
                 nd.mac_address::text,
                 nd.last_ip::text,
                 nd.last_seen
             FROM new_devices nd
-            LEFT JOIN device_profiles dp ON dp.mac_address = nd.mac_address
-            WHERE dp.mac_address IS NULL
+            LEFT JOIN alerts a ON a.device_id = nd.mac_address
+            WHERE a.id IS NULL
             AND nd.last_seen > NOW() - INTERVAL '5 minutes'
         """)
         
         new_devices = cursor.fetchall()
         if new_devices:
-            logger.info(f"Found {len(new_devices)} new devices that need profiling")
-        
-        profiler = DeviceProfiler()
-        for mac, ip, timestamp in new_devices:
-            try:
-                # Profile the device first
-                logger.info(f"Profiling device: MAC={mac}, IP={ip}")
-                profile = profiler.profile_device(ip)
-                
-                if profile:
-                    logger.info(f"Profile results for {mac}: {profile}")
-                    # Store profile
-                    cursor.execute("""
-                        INSERT INTO device_profiles 
-                        (mac_address, hostname, vendor, device_type, open_ports, last_updated)
-                        VALUES (%s::macaddr, %s, %s, %s, %s::jsonb, NOW())
-                    """, (
-                        mac,
-                        profile.get('hostname', 'Unknown'),
-                        profile.get('vendor', 'Unknown'),
-                        profile.get('device_type', 'Unknown'),
-                        profile.get('open_ports', '[]')
-                    ))
+            logger.info(f"Found {len(new_devices)} new devices to profile")
+            
+            profiler = DeviceProfiler()
+            
+            for mac, ip, timestamp in new_devices:
+                try:
+                    # Profile device
+                    logger.info(f"Starting profile for MAC={mac}, IP={ip}")
+                    profile = profiler.profile_device(ip, mac)
                     
-                    # Create alert with profile information
-                    details = f"""New device detected:
+                    if profile:
+                        # Store profile
+                        ports_json = json.dumps(profile.get('open_ports', []))
+                        cursor.execute("""
+                            INSERT INTO device_profiles 
+                            (mac_address, hostname, vendor, device_type, open_ports, last_updated)
+                            VALUES (%s::macaddr, %s, %s, %s, %s::jsonb, NOW())
+                            ON CONFLICT (mac_address) DO UPDATE SET
+                                hostname = EXCLUDED.hostname,
+                                vendor = EXCLUDED.vendor,
+                                device_type = EXCLUDED.device_type,
+                                open_ports = EXCLUDED.open_ports,
+                                last_updated = NOW()
+                        """, (
+                            mac,
+                            profile['hostname'],
+                            profile['vendor'],
+                            profile['device_type'],
+                            ports_json
+                        ))
+                        
+                        # Create alert
+                        details = f"""New device detected:
 MAC: {mac}
 IP: {ip}
-First Seen: {timestamp}
-Hostname: {profile.get('hostname', 'Unknown')}
-Vendor: {profile.get('vendor', 'Unknown')}
-Type: {profile.get('device_type', 'Unknown')}
-Open Ports: {', '.join(str(p['port']) for p in profile.get('open_ports', []))}"""
+Hostname: {profile['hostname']}
+Vendor: {profile['vendor']}
+Type: {profile['device_type']}
+Open Ports: {', '.join(str(p['port']) for p in profile['open_ports'])}"""
 
-                    cursor.execute("""
-                        INSERT INTO alerts 
-                        (device_id, alert_type, detected_at, details, severity, is_resolved)
-                        VALUES (%s::macaddr, 'new_device', %s, %s, 'medium', false)
-                        RETURNING id
-                    """, (mac, timestamp, details))
+                        cursor.execute("""
+                            INSERT INTO alerts 
+                            (device_id, alert_type, detected_at, details, severity, is_resolved)
+                            VALUES (%s::macaddr, 'new_device', NOW(), %s, 'medium', false)
+                            RETURNING id
+                        """, (mac, details))
+                        
+                        alert_id = cursor.fetchone()[0]
+                        conn.commit()
+                        
+                        # Send notifications immediately
+                        email_sent = send_email("NetGuard Alert: New Device Detected", details)
+                        telegram_sent = send_telegram(details)
+                        
+                        logger.info(f"Device {mac} processed - Email: {'✓' if email_sent else '✗'}, "
+                                  f"Telegram: {'✓' if telegram_sent else '✗'}")
                     
-                    alert_id = cursor.fetchone()[0]
-                    conn.commit()
-
-                    # Send notifications
-                    email_sent = send_email("NetGuard Alert: New Device Detected", details)
-                    telegram_sent = send_telegram(details)
-                    
-                    logger.info(f"Notifications for {mac} - Email: {'✓' if email_sent else '✗'}, "
-                              f"Telegram: {'✓' if telegram_sent else '✗'}")
-                    
-            except Exception as e:
-                logger.error(f"Error processing device {mac}: {str(e)}")
-                conn.rollback()
-                continue
+                except Exception as e:
+                    logger.error(f"Error processing device {mac}: {str(e)}")
+                    conn.rollback()
+                    continue
 
     except Exception as e:
         logger.error(f"Error in check_for_unknown_devices: {str(e)}")
