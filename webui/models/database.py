@@ -3,6 +3,9 @@
 from flask import current_app
 from sqlalchemy import text, bindparam
 from flask_sqlalchemy import SQLAlchemy
+import logging
+import psycopg2
+from contextlib import contextmanager
 
 # Create the SQLAlchemy instance
 db = SQLAlchemy()
@@ -133,17 +136,24 @@ class Database:
                 with conn.cursor() as cur:
                     result = None
                     for query, params in queries:
-                        # Execute each query with its parameters
+                        # Log the query and parameters for debugging
+                        logging.debug(f"Executing query: {query}")
+                        logging.debug(f"With parameters: {params}")
+                        
+                        # Execute with named parameters
                         cur.execute(query, params)
+                        
                         try:
                             result = cur.fetchall()
-                        except:
-                            result = None
+                        except psycopg2.ProgrammingError:
+                            # No results to fetch
+                            pass
+                            
                     conn.commit()
                     return result
+                    
         except Exception as e:
-            # Log the actual error for debugging
-            import logging
+            if 'conn' in locals():
+                conn.rollback()
             logging.error(f"Transaction failed: {str(e)}")
-            # Re-raise the exception
             raise
