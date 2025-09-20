@@ -1,4 +1,5 @@
 from ..logging.logger import setup_logging
+from ..config.settings import Settings
 from .handlers import DeviceHandler
 from .notifiers.telegram import TelegramNotifier
 from .notifiers.email import EmailNotifier
@@ -11,6 +12,7 @@ logger = setup_logging('netureon.daemon')
 
 class AlertDaemon:
     def __init__(self):
+        self.settings = Settings.get_instance()
         self._check_dependencies()
         self.device_handler = DeviceHandler()
         self.email_notifier = EmailNotifier()

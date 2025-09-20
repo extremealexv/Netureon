@@ -1,4 +1,3 @@
-from flask import current_app
 import os
 from dotenv import load_dotenv
 
@@ -13,9 +12,19 @@ class Settings:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    def get_db_config(self):
+        """Get database configuration settings."""
+        return {
+            'dbname': os.getenv('DB_NAME', 'netureon'),
+            'user': os.getenv('DB_USER', 'netureon'),
+            'password': os.getenv('DB_PASSWORD', ''),
+            'host': os.getenv('DB_HOST', 'localhost'),
+            'port': os.getenv('DB_PORT', '5432')
+        }
     
     def get_setting(self, key, default=None):
-        """Get setting from cache, environment or database."""
+        """Get setting from cache or environment."""
         # First check cache
         if key in self._settings_cache:
             return self._settings_cache[key]
@@ -26,16 +35,8 @@ class Settings:
             self._settings_cache[key] = env_value
             return env_value
             
-        # Finally check database if in Flask context
-        try:
-            from webui.models.config import Configuration
-            with current_app.app_context():
-                value = Configuration.get_setting(key, default)
-                self._settings_cache[key] = value
-                return value
-        except RuntimeError:
-            # If not in Flask context, return default
-            return default
+        # Return default if not found
+        return default
             
     def get_notification_settings(self):
         """Get all notification related settings."""
