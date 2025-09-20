@@ -39,8 +39,33 @@ class DeviceHandler:
             logger.error(f"Error checking for unknown devices: {str(e)}")
             return []
 
+    def store_device_profile(self, mac, profile):
+        """Store device profile in database."""
+        try:
+            with psycopg2.connect(**self.db_config) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE new_devices 
+                        SET hostname = %s,
+                            vendor = %s,
+                            device_type = %s,
+                            open_ports = %s::jsonb,
+                            last_updated = NOW()
+                        WHERE mac_address = %s::macaddr
+                    """, (
+                        profile.get('hostname', 'Unknown'),
+                        profile.get('vendor', 'Unknown'),
+                        profile.get('device_type', 'Unknown'),
+                        json.dumps(profile.get('open_ports', [])),
+                        mac
+                    ))
+                    conn.commit()
+                    logger.info(f"Stored profile for device {mac}")
+        except Exception as e:
+            logger.error(f"Failed to store profile for {mac}: {e}")
+
     def profile_device(self, mac, ip, timestamp):
-        """Profile a single device and store results."""
+        """Profile a device and store results."""
         logger.info(f"Profiling device: MAC={mac}, IP={ip}")
         try:
             profile = self.profiler.profile_device(ip, mac)
@@ -50,10 +75,28 @@ class DeviceHandler:
             with psycopg2.connect(**self.db_config) as conn:
                 with conn.cursor() as cursor:
                     # Store profile
-                    self._store_profile(cursor, mac, profile)
+                    self.store_device_profile(mac, profile)
+                    
                     # Create alert
-                    alert_id = self._create_alert(cursor, mac, ip, profile, timestamp)
+                    details = f"""New device detected:
+MAC: {mac}
+IP: {ip}
+Hostname: {profile.get('hostname', 'Unknown')}
+Vendor: {profile.get('vendor', 'Unknown')}
+Type: {profile.get('device_type', 'Unknown')}
+Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('open_ports', []))}"""
+
+                    cursor.execute("""
+                        INSERT INTO alerts 
+                        (device_id, alert_type, detected_at, details, severity)
+                        VALUES (%s::macaddr, 'new_device', NOW(), %s, 'medium')
+                        RETURNING id
+                    """, (mac, details))
+                    
+                    alert_id = cursor.fetchone()[0]
                     conn.commit()
+                    
+                    logger.info(f"Created alert {alert_id} for device {mac}")
                     return alert_id
                     
         except Exception as e:
