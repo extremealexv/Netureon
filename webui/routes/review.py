@@ -21,7 +21,7 @@ def review_page():
                 last_ip,
                 first_seen,
                 last_seen,
-                status,
+                COALESCE(reviewed, false) as status,
                 notes,
                 open_ports
             FROM new_devices

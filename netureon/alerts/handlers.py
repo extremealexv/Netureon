@@ -173,3 +173,31 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                     
         except Exception as e:
             logger.error(f"Error updating alert {alert_id}: {str(e)}")
+
+    def send_notifications(self, alert_id, subject, message):
+        """Send notifications for an alert."""
+        try:
+            settings = Settings.get_instance()
+            notification_settings = settings.get_notification_settings()
+            
+            # Send email if enabled
+            email_sent = False
+            if notification_settings.get('enable_email_notifications'):
+                from ..alerts.notifiers.email import EmailNotifier
+                email_notifier = EmailNotifier()
+                email_sent = email_notifier.send_notification(subject, message)
+                self.logger.info(f"Email notification {'sent' if email_sent else 'failed'}")
+
+            # Send Telegram if enabled
+            telegram_sent = False
+            if notification_settings.get('enable_telegram_notifications'):
+                from ..alerts.notifiers.telegram import TelegramNotifier
+                telegram_notifier = TelegramNotifier()
+                telegram_sent = telegram_notifier.send_notification(message)
+                self.logger.info(f"Telegram notification {'sent' if telegram_sent else 'failed'}")
+
+            # Update alert status
+            self.update_alert_status(alert_id, email_sent, telegram_sent)
+                
+        except Exception as e:
+            self.logger.error(f"Error sending notifications: {str(e)}")
