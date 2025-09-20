@@ -124,15 +124,15 @@ def get_scan_config():
             'interface': Configuration.get_setting('network_interface', 'eth0')
         }
 
-def send_email(body):
+def send_email(subject, body):
+    """Send email notification with improved error handling."""
     settings = get_notification_settings()
+    logger.info("Attempting to send email notification...")
     
-    # First check if email notifications are enabled
     if settings['enable_email_notifications'] != 'true':
-        print("Email notifications are disabled in NetGuard settings")
+        logger.info("Email notifications are disabled in settings")
         return False
     
-    # Check if all required settings are present
     required_settings = [
         'smtp_server', 'smtp_port', 'smtp_username', 'smtp_password',
         'smtp_from_address', 'smtp_to_address'
@@ -140,43 +140,39 @@ def send_email(body):
     
     missing = [s for s in required_settings if not settings.get(s)]
     if missing:
-        print(f"Email configuration incomplete. Missing: {', '.join(missing)}")
+        logger.error(f"Email configuration incomplete. Missing: {', '.join(missing)}")
         return False
         
     try:
-        print(f"Attempting to send email notification to {settings['smtp_to_address']}")
+        logger.debug(f"Connecting to SMTP server {settings['smtp_server']}:{settings['smtp_port']}")
         server = smtplib.SMTP(settings['smtp_server'], int(settings['smtp_port']))
-        server.set_debuglevel(1)  # Enable debug output
         
         # Start TLS for security
-        print("Starting TLS...")
         server.starttls()
         
         # Authentication
-        print("Authenticating...")
+        logger.debug("Authenticating with SMTP server...")
         server.login(settings['smtp_username'], settings['smtp_password'])
         
-        # Prepare message
-        message = f"Subject: NetGuard Alert\n\n{body}"
-        message = message.encode('utf-8')  # Encode message as UTF-8
+        # Prepare message with proper headers
+        message = f"""From: NetGuard <{settings['smtp_from_address']}>
+To: <{settings['smtp_to_address']}>
+Subject: {subject}
+
+{body}"""
+        message = message.encode('utf-8')
         
         # Send email
-        print("Sending email...")
-        server.sendmail(settings['smtp_from_address'], settings['smtp_to_address'], message)
-        print("Email sent successfully")
+        server.sendmail(settings['smtp_from_address'], 
+                       settings['smtp_to_address'], 
+                       message)
+        logger.info("Email sent successfully")
         
-        # Close the connection
         server.quit()
         return True
         
-    except smtplib.SMTPServerDisconnected as e:
-        print(f"SMTP Server disconnected: {e}")
-        return False
-    except smtplib.SMTPAuthenticationError as e:
-        print(f"SMTP Authentication failed: {e}")
-        return False
     except Exception as e:
-        print(f"Email error: {type(e).__name__}: {e}")
+        logger.error(f"Failed to send email: {str(e)}")
         return False
 
 def send_telegram(message):
@@ -253,42 +249,36 @@ Status: Profiling in progress...
             conn.close()
 
 def check_for_unknown_devices():
-    """Check for new devices and active unknown devices that need alerts."""
+    """Check for new devices and profile them."""
+    logger.info("Checking for unknown devices...")
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         
-        # Check for new devices and profile them
+        # Get devices without profiles
         cursor.execute("""
-            WITH new_unidentified AS (
-                SELECT 
-                    nd.mac_address,
-                    nd.last_ip,
-                    nd.last_seen
-                FROM new_devices nd
-                LEFT JOIN device_profiles dp ON dp.mac_address = nd.mac_address
-                WHERE dp.mac_address IS NULL  -- Only get devices without profiles
-                AND nd.last_seen > NOW() - INTERVAL '5 minutes'
-            )
             SELECT 
-                mac_address::text,
-                last_ip::text,
-                last_seen
-            FROM new_unidentified
+                nd.mac_address::text,
+                nd.last_ip::text,
+                nd.last_seen
+            FROM new_devices nd
+            LEFT JOIN device_profiles dp ON dp.mac_address = nd.mac_address
+            WHERE dp.mac_address IS NULL
+            AND nd.last_seen > NOW() - INTERVAL '5 minutes'
         """)
         
         new_devices = cursor.fetchall()
+        logger.info(f"Found {len(new_devices)} devices without profiles")
         
-        # Profile new devices
         profiler = DeviceProfiler()
-        
         for mac, ip, timestamp in new_devices:
             try:
-                # Get device profile
+                logger.info(f"Profiling device: MAC={mac}, IP={ip}")
                 profile = profiler.profile_device(ip)
                 
                 if profile:
-                    # Update device profile in database
+                    logger.info(f"Profile found for {mac}: {profile}")
+                    # Update device profile
                     cursor.execute("""
                         INSERT INTO device_profiles 
                         (mac_address, hostname, vendor, device_type, open_ports, last_updated)
@@ -302,153 +292,49 @@ def check_for_unknown_devices():
                             last_updated = NOW()
                     """, (
                         mac,
-                        profile.get('hostname'),
-                        profile.get('vendor'),
-                        profile.get('device_type'),  # Fixed missing parenthesis
+                        profile.get('hostname', 'Unknown'),
+                        profile.get('vendor', 'Unknown'),
+                        profile.get('device_type', 'Unknown'),
                         profile.get('open_ports', '[]')
                     ))
+                    
+                    # Create alert for new device
+                    device_info = format_device_info(mac, ip, 
+                                                   profile.get('hostname'),
+                                                   profile.get('vendor'),
+                                                   profile.get('open_ports', []))
+                    
+                    cursor.execute("""
+                        INSERT INTO alerts (device_id, alert_type, detected_at, details, severity)
+                        VALUES (%s::macaddr, 'new_device', NOW(), %s, 'medium')
+                        RETURNING id
+                    """, (mac, device_info))
+                    
+                    alert_id = cursor.fetchone()[0]
                     conn.commit()
-                    print(f"Updated profile for device {mac}")
-            
+                    
+                    # Send notifications
+                    subject = "NetGuard Alert: New Device Detected"
+                    body = device_info
+                    
+                    email_sent = send_email(subject, body)
+                    telegram_sent = send_telegram(body)
+                    
+                    logger.info(f"Notifications for {mac} - Email: {'✓' if email_sent else '✗'}, "
+                              f"Telegram: {'✓' if telegram_sent else '✗'}")
+                    
             except Exception as e:
-                print(f"Error profiling device {mac}: {e}")
+                logger.error(f"Error profiling device {mac}: {str(e)}")
+                conn.rollback()
                 continue
 
-        # Check for new devices that haven't been alerted on
-        cursor.execute("""
-            INSERT INTO alerts (device_id, alert_type, detected_at, details, severity)
-            SELECT 
-                nd.mac_address::macaddr,
-                'new_device',
-                nd.last_seen,
-                CONCAT(
-                    'New device detected:\n',
-                    'MAC: ', nd.mac_address::macaddr::text, '\n',
-                    'IP: ', COALESCE(nd.last_ip::text, 'Unknown'), '\n',
-                    'First Seen: ', nd.first_seen, '\n',
-                    CASE 
-                        WHEN nd.device_name IS NOT NULL THEN CONCAT('Name: ', nd.device_name, '\n')
-                        ELSE ''
-                    END
-                ),
-                'medium'
-            FROM new_devices nd
-            LEFT JOIN known_devices kd ON kd.mac_address::macaddr = nd.mac_address::macaddr
-            LEFT JOIN alerts a ON 
-                a.device_id = nd.mac_address::macaddr AND 
-                a.alert_type = 'new_device'
-            WHERE kd.mac_address IS NULL  -- Ensure device is not in known_devices
-            AND a.id IS NULL             -- Ensure we haven't alerted on this device before
-            RETURNING device_id::text;
-        """)
-        new_device_alerts = cursor.fetchall()
-        for alert in new_device_alerts:
-            print(f"Created alert for new device: {alert[0]}")
-            
-        # Check for unknown devices that have been recently active
-        cursor.execute("""
-            WITH recent_activity AS (
-                SELECT DISTINCT ON (ud.mac_address)
-                    ud.mac_address,
-                    dl.ip_address,
-                    dl.timestamp,
-                    ud.threat_level,
-                    ud.notes,
-                    ud.first_seen,
-                    (
-                        SELECT COUNT(*) 
-                        FROM discovery_log 
-                        WHERE mac_address::macaddr = ud.mac_address::macaddr
-                    ) as detection_count
-                FROM unknown_devices ud
-                JOIN discovery_log dl ON dl.mac_address::macaddr = ud.mac_address::macaddr
-                WHERE dl.timestamp > NOW() - INTERVAL '5 minutes'
-                ORDER BY ud.mac_address, dl.timestamp DESC
-            )
-            SELECT 
-                ra.mac_address,
-                ra.ip_address,
-                ra.timestamp,
-                ra.threat_level,
-                ra.notes,
-                ra.first_seen,
-                ra.detection_count
-            FROM recent_activity ra
-            LEFT JOIN alerts a ON 
-                a.device_id::macaddr = ra.mac_address::macaddr AND 
-                a.alert_type = 'unknown_device' AND 
-                NOT a.is_resolved AND
-                a.detected_at > NOW() - INTERVAL '1 hour'
-            WHERE a.id IS NULL
-        """)
-        unknown_connections = cursor.fetchall()
-
-        # Create alerts for unknown device connections
-        for mac, ip, timestamp, threat_level, notes, first_seen, count in unknown_connections:
-            # Update last_seen in unknown_devices
-            cursor.execute("""
-                UPDATE unknown_devices 
-                SET last_seen = %s, last_ip = %s::inet 
-                WHERE mac_address = %s::macaddr
-            """, (timestamp, ip, mac))
-
-            # Format basic alert details without hostname/vendor info
-            device_info = format_device_info(mac, ip, None, None, [])
-            alert_details = f"""
-THREAT DETECTED: {threat_level.upper()} Risk Device
-{device_info}
-
-History:
-First Seen: {first_seen}
-Total Detections: {count}
-
-Threat Notes: 
-{notes}
-            """.strip()
-
-            # Check if we need to create a new alert
-            try:
-                cursor.execute("""
-                    WITH latest_alert AS (
-                        SELECT detected_at
-                        FROM alerts
-                        WHERE device_id::macaddr = %s::macaddr
-                        AND alert_type = 'unknown_device'
-                        AND NOT is_resolved
-                        ORDER BY detected_at DESC
-                        LIMIT 1
-                    )
-                    SELECT 
-                        CASE 
-                            WHEN latest_alert.detected_at IS NULL THEN true
-                            WHEN latest_alert.detected_at < NOW() - INTERVAL '1 hour' THEN true
-                            ELSE false
-                        END as should_alert
-                    FROM (SELECT true) as t
-                    LEFT JOIN latest_alert ON true;
-                """, (mac,))
-                
-                should_alert = cursor.fetchone()[0]
-                
-                if should_alert:
-                    cursor.execute("""
-                        INSERT INTO alerts (device_id, detected_at, alert_type, details, severity)
-                        VALUES (%s::macaddr, %s, 'unknown_device', %s, %s)
-                        RETURNING device_id::text
-                    """, (mac, timestamp, alert_details, threat_level))
-                    alert_mac = cursor.fetchone()[0]
-                    print(f"New alert created for device: {alert_mac}")
-                else:
-                    print(f"Skipping alert creation for {mac} - recent alert exists")
-                    
-            except psycopg2.Error as e:
-                print(f"Error handling alert for {mac}: {e}")
-
-        conn.commit()
         cursor.close()
         conn.close()
+        
     except Exception as e:
-        print(f"Error checking unknown devices: {e}")
+        logger.error(f"Error in check_for_unknown_devices: {str(e)}")
+        if 'conn' in locals():
+            conn.close()
 
 last_email_time = None
 email_cooldown = 300  # 5 minutes between email attempts
