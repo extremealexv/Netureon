@@ -271,7 +271,7 @@ def check_for_unknown_devices():
                         mac,
                         profile.get('hostname'),
                         profile.get('vendor'),
-                        profile.get('device_type',
+                        profile.get('device_type'),  # Fixed missing parenthesis
                         profile.get('open_ports', '[]')
                     ))
                     conn.commit()
