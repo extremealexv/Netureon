@@ -4,6 +4,7 @@ from .notifiers.telegram import TelegramNotifier
 from .notifiers.email import EmailNotifier
 import time
 import shutil
+import subprocess
 
 logger = setup_logging('netureon.daemon')
 
@@ -18,9 +19,23 @@ class AlertDaemon:
 
     def _check_dependencies(self):
         """Check if required system dependencies are available."""
-        if not shutil.which('nmap'):
-            logger.error("nmap is not installed. Please install it using: sudo apt-get install nmap")
-            raise SystemError("Required dependency 'nmap' not found")
+        try:
+            # Try to execute nmap directly to check its availability
+            subprocess.run(['nmap', '--version'], 
+                         stdout=subprocess.PIPE, 
+                         stderr=subprocess.PIPE,
+                         check=True)
+            logger.info("nmap dependency check passed")
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            logger.error(f"nmap check failed: {str(e)}")
+            # Try to get more detailed error information
+            paths = subprocess.run(['which', 'nmap'], 
+                                stdout=subprocess.PIPE, 
+                                stderr=subprocess.PIPE,
+                                text=True)
+            logger.error(f"nmap path check result: {paths.stdout}")
+            logger.error(f"Current PATH: {subprocess.run(['echo', '$PATH'], stdout=subprocess.PIPE, text=True).stdout}")
+            raise SystemError("Required dependency 'nmap' not found or not executable")
 
     def run(self):
         """Main daemon loop."""
