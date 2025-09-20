@@ -3,16 +3,24 @@ from .handlers import DeviceHandler
 from .notifiers.telegram import TelegramNotifier
 from .notifiers.email import EmailNotifier
 import time
+import shutil
 
 logger = setup_logging('netureon.daemon')
 
 class AlertDaemon:
     def __init__(self):
+        self._check_dependencies()
         self.device_handler = DeviceHandler()
         self.email_notifier = EmailNotifier()
         self.telegram_notifier = TelegramNotifier()
         self.running = True
         self.check_interval = 10  # seconds
+
+    def _check_dependencies(self):
+        """Check if required system dependencies are available."""
+        if not shutil.which('nmap'):
+            logger.error("nmap is not installed. Please install it using: sudo apt-get install nmap")
+            raise SystemError("Required dependency 'nmap' not found")
 
     def run(self):
         """Main daemon loop."""
