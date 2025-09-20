@@ -35,17 +35,13 @@ root_logger.addHandler(file_handler)
 root_logger.addHandler(console_handler)
 
 def create_app():
+    """Create and configure the Flask application."""
     app = Flask(__name__)
-    app.secret_key = Config.SECRET_KEY
     
-    # Configure SQLAlchemy
-    app.config['SQLALCHEMY_DATABASE_URI'] = (
-        f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@"
-        f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
-    )
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # Load configuration
+    app.config.from_object('webui.config.config.Config')
     
-    # Initialize extensions
+    # Initialize database
     db.init_app(app)
     
     # Register blueprints and initialize routes
