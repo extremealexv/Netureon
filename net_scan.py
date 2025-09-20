@@ -12,20 +12,13 @@ from logging.handlers import RotatingFileHandler
 import sdnotify
 from scapy.all import ARP, Ether, srp
 import psycopg2
+import signal
 from concurrent.futures import ThreadPoolExecutor
 import argparse
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-
-DB_CONFIG = {
-    'dbname': os.getenv('DB_NAME'),
-    'user': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASSWORD'),
-    'host': os.getenv('DB_HOST'),
-    'port': os.getenv('DB_PORT')
-}
 
 class NetworkScanner:
     def __init__(self, single_scan=False):
@@ -35,65 +28,69 @@ class NetworkScanner:
         self.last_watchdog = time.time()
         self.watchdog_interval = 30
         self.single_scan = single_scan
-        self.db_conn = None
+        
+        # Set up signal handlers
+        signal.signal(signal.SIGTERM, self.handle_shutdown)
+        signal.signal(signal.SIGINT, self.handle_shutdown)
+        
         self.logger.info("Netureon Scanner v1.3.1 initialized")
 
     def setup_logging(self):
-        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+        """Configure logging with proper file handling"""
+        log_dir = os.path.expanduser('~/Netureon/logs')
         os.makedirs(log_dir, exist_ok=True)
         
         log_file = os.path.join(log_dir, 'netureon.log')
         
-        handler = RotatingFileHandler(
+        # Create console handler
+        console = logging.StreamHandler()
+        console.setLevel(logging.INFO)
+        
+        # Create file handler
+        file_handler = RotatingFileHandler(
             log_file,
             maxBytes=10*1024*1024,
             backupCount=5,
             delay=False,
-            mode='a'
+            mode='a+'
         )
+        file_handler.setLevel(logging.INFO)
         
+        # Create formatters and add them to the handlers
         formatter = logging.Formatter(
             '%(asctime)s - %(levelname)s - %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
-        handler.setFormatter(formatter)
+        console.setFormatter(formatter)
+        file_handler.setFormatter(formatter)
         
-        self.logger = logging.getLogger()
+        # Get the logger and set level
+        self.logger = logging.getLogger('netureon')
         self.logger.setLevel(logging.INFO)
         
-        for h in self.logger.handlers[:]:
-            self.logger.removeHandler(h)
-            
-        self.logger.addHandler(handler)
-        handler.flush()
+        # Remove any existing handlers
+        self.logger.handlers = []
+        
+        # Add the handlers to the logger
+        self.logger.addHandler(console)
+        self.logger.addHandler(file_handler)
+        
         return self.logger
 
-    def connect_db(self):
-        try:
-            if not self.db_conn or self.db_conn.closed:
-                self.db_conn = psycopg2.connect(**DB_CONFIG)
-                self.db_conn.autocommit = True
-        except Exception as e:
-            self.logger.error(f"Database connection failed: {e}")
-            raise
-
     def scan_network(self):
+        """Perform network scan"""
         try:
             self.logger.info("Starting network scan...")
-            self.connect_db()
             self.ping_watchdog()
             
             devices = []
-            for subnet in ["192.168.1.0/24"]:  # Add more subnets if needed
-                arp = ARP(pdst=subnet)
-                ether = Ether(dst="ff:ff:ff:ff:ff:ff")
-                packet = ether/arp
+            arp = ARP(pdst="192.168.1.0/24")
+            ether = Ether(dst="ff:ff:ff:ff:ff:ff")
+            packet = ether/arp
 
-                result = srp(packet, timeout=3, verbose=0)[0]
-                chunk_devices = [(received.psrc, received.hwsrc) for sent, received in result]
-                devices.extend(chunk_devices)
-                self.ping_watchdog()
-
+            result = srp(packet, timeout=3, verbose=0)[0]
+            devices = [(received.psrc, received.hwsrc) for sent, received in result]
+            
             self.process_devices(devices)
             self.logger.info(f"Scan complete. Found {len(devices)} devices")
             return True
@@ -101,40 +98,53 @@ class NetworkScanner:
         except Exception as e:
             self.logger.error(f"Scan failed: {str(e)}")
             return False
-        finally:
-            if self.db_conn:
-                self.db_conn.close()
 
     def process_devices(self, devices):
-        cur = self.db_conn.cursor()
+        """Process found devices and update database"""
         try:
-            for ip, mac in devices:
-                cur.execute("""
-                    INSERT INTO new_devices (mac_address, last_ip, last_seen)
-                    VALUES (%s::macaddr, %s::inet, NOW())
-                    ON CONFLICT (mac_address) DO UPDATE 
-                    SET last_ip = EXCLUDED.last_ip,
-                        last_seen = NOW()
-                """, (mac, ip))
-        finally:
-            cur.close()
+            with psycopg2.connect(
+                dbname=os.getenv('DB_NAME'),
+                user=os.getenv('DB_USER'),
+                password=os.getenv('DB_PASSWORD'),
+                host=os.getenv('DB_HOST'),
+                port=os.getenv('DB_PORT')
+            ) as conn:
+                with conn.cursor() as cur:
+                    for ip, mac in devices:
+                        cur.execute("""
+                            INSERT INTO new_devices (mac_address, last_ip, last_seen)
+                            VALUES (%s::macaddr, %s::inet, NOW())
+                            ON CONFLICT (mac_address) DO UPDATE 
+                            SET last_ip = EXCLUDED.last_ip,
+                                last_seen = NOW()
+                        """, (mac, ip))
+                    conn.commit()
+        except Exception as e:
+            self.logger.error(f"Database error: {str(e)}")
+            raise
 
     def ping_watchdog(self):
-        current_time = time.time()
-        if current_time - self.last_watchdog >= self.watchdog_interval:
-            self.notifier.notify("WATCHDOG=1")
-            self.last_watchdog = current_time
+        """Send watchdog notification to systemd"""
+        try:
+            current_time = time.time()
+            if current_time - self.last_watchdog >= self.watchdog_interval:
+                self.notifier.notify("WATCHDOG=1")
+                self.last_watchdog = current_time
+                self.logger.debug("Watchdog notification sent")
+        except Exception as e:
+            self.logger.error(f"Watchdog notification failed: {str(e)}")
 
     def handle_shutdown(self, signum, frame):
-        self.logger.info("Received shutdown signal, cleaning up...")
+        """Handle shutdown signals gracefully"""
+        self.logger.info(f"Received signal {signum}, cleaning up...")
         self.running = False
-        if self.db_conn:
-            self.db_conn.close()
         self.logger.info("Scanner shutdown complete")
         sys.exit(0)
 
     def start_monitoring(self):
+        """Start the monitoring process"""
         try:
+            self.logger.info("Starting network monitoring...")
             self.notifier.notify("READY=1")
             
             if self.single_scan:
