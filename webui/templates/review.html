@@ -1,44 +1,126 @@
 {% extends "main.html" %}
 {% block content %}
-    <div class="container">
-        <h1>🔍 Review New Devices</h1>
-        
-        <form method="POST" action="{{ url_for('review.review_page') }}">
-            {% if devices %}
-            <div class="action-buttons">
-                <button type="submit" name="action" value="approve" class="btn btn-success">✓ Approve Selected</button>
-                <button type="submit" name="action" value="block" class="btn btn-danger">⛔ Block Selected</button>
-                <select name="risk_level" class="form-select">
-                    <option value="low">Low Risk</option>
-                    <option value="medium" selected>Medium Risk</option>
-                    <option value="high">High Risk</option>
-                </select>
-                <input type="text" name="notes" placeholder="Add notes" class="form-control">
-            </div>
-
-            <div class="device-grid">
-                {% for device in devices %}
-                <div class="device-card">
-                    <div class="device-header">
-                        <h3>{{ device.device_name or 'Unknown' }}</h3>
-                        <span class="badge {{ 'bg-success' if device.status else 'bg-warning' }}">
-                            {{ 'Reviewed' if device.status else 'Pending Review' }}
-                        </span>
-                    </div>
-                    <div class="device-details">
-                        <p><strong>MAC:</strong> {{ device.mac_address }}</p>
-                        <p><strong>Vendor:</strong> {{ device.vendor or 'Unknown' }}</p>
-                        <p><strong>Type:</strong> {{ device.device_type or 'Unknown' }}</p>
-                        <p><strong>Last IP:</strong> {{ device.last_ip }}</p>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div class="alert alert-info">
-                No new devices to review at this time.
-            </div>
-            {% endif %}
-        </form>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-search"></i> Review New Devices</h1>
+        <div class="actions">
+            <button class="btn btn-success" onclick="approveSelected()">
+                <i class="fas fa-check"></i> Approve Selected
+            </button>
+            <button class="btn btn-danger" onclick="blockSelected()">
+                <i class="fas fa-ban"></i> Block Selected
+            </button>
+            <select class="form-select d-inline-block w-auto" id="riskLevel">
+                <option value="low">Low Risk</option>
+                <option value="medium" selected>Medium Risk</option>
+                <option value="high">High Risk</option>
+            </select>
+            <input type="text" class="form-control d-inline-block w-auto" placeholder="Add notes" id="notes">
+        </div>
     </div>
+
+    <div class="row">
+        {% for device in devices %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="form-check float-end">
+                        <input class="form-check-input" type="checkbox" value="{{ device.mac_address }}" id="device-{{ loop.index }}">
+                    </div>
+                    <h5 class="card-title text-primary">{{ device.device_name or 'Unknown Device' }}</h5>
+                    <span class="badge {% if device.status %}bg-success{% else %}bg-warning{% endif %} mb-2">
+                        {{ 'Reviewed' if device.status else 'Pending Review' }}
+                    </span>
+                    
+                    <div class="device-info">
+                        <p class="mb-1"><strong>MAC:</strong> {{ device.mac_address }}</p>
+                        <p class="mb-1"><strong>Vendor:</strong> {{ device.vendor or 'Unknown' }}</p>
+                        <p class="mb-1"><strong>Type:</strong> {{ device.device_type or 'Unknown' }}</p>
+                        <p class="mb-1"><strong>Last IP:</strong> {{ device.last_ip }}</p>
+                        <p class="mb-1"><strong>First Seen:</strong> {{ device.first_seen }}</p>
+                        <p class="mb-1"><strong>Last Seen:</strong> {{ device.last_seen }}</p>
+                        {% if device.notes %}
+                        <p class="mb-1"><strong>Notes:</strong> {{ device.notes }}</p>
+                        {% endif %}
+                    </div>
+
+                    {% if device.open_ports %}
+                    <div class="mt-2">
+                        <strong>Open Ports:</strong>
+                        <ul class="list-unstyled">
+                        {% for port in device.open_ports %}
+                            <li>{{ port.port }} ({{ port.service }})</li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function approveSelected() {
+    const selected = getSelectedDevices();
+    if (selected.length === 0) {
+        alert('Please select devices to approve');
+        return;
+    }
+    const notes = document.getElementById('notes').value;
+    
+    fetch('/review/approve', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            devices: selected,
+            notes: notes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to approve devices');
+        }
+    });
+}
+
+function blockSelected() {
+    const selected = getSelectedDevices();
+    if (selected.length === 0) {
+        alert('Please select devices to block');
+        return;
+    }
+    const notes = document.getElementById('notes').value;
+    
+    fetch('/review/block', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            devices: selected,
+            notes: notes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to block devices');
+        }
+    });
+}
+
+function getSelectedDevices() {
+    return Array.from(document.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(cb => cb.value);
+}
+</script>
 {% endblock %}
