@@ -28,6 +28,13 @@ class Settings:
                 'port': os.getenv('DB_PORT')
             }
             logger.info("Settings initialized with database connection from .env")
+
+    @classmethod
+    def get_instance(cls):
+        """Get singleton instance of Settings."""
+        if cls._instance is None:
+            cls._instance = Settings()
+        return cls._instance
     
     def get_db_config(self):
         """Get database configuration from .env file."""
