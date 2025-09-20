@@ -13,26 +13,15 @@ class DeviceProfiler:
     def _run_nmap_scan(self, ip):
         """Run nmap scan with proper privileges."""
         try:
-            # First try with sudo
-            result = subprocess.run(
-                ['sudo', 'nmap', '-sS', '-sV', '-T4', '-F', '--max-retries', '2', ip],
-                capture_output=True,
-                text=True,
-                check=True
+            # Try direct nmap execution first
+            scan_result = self.nm.scan(
+                ip,
+                arguments='-sT -T4 -F -Pn'  # Use TCP connect scan which doesn't require root
             )
-            return result.stdout
-        except subprocess.CalledProcessError:
-            self.logger.warning("Sudo nmap scan failed, trying TCP connect scan")
-            try:
-                # Fallback to TCP connect scan (doesn't require root)
-                scan_result = self.nm.scan(
-                    hosts=ip,
-                    arguments='-sT -T4 -F -Pn'
-                )
-                return scan_result
-            except Exception as e:
-                self.logger.error(f"TCP connect scan also failed: {e}")
-                return None
+            return scan_result
+        except Exception as e:
+            self.logger.error(f"Port scan failed: {e}")
+            return None
 
     def profile_device(self, ip, mac):
         """Profile a device by IP and MAC address."""
