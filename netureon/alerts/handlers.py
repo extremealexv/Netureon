@@ -8,10 +8,11 @@ logger = setup_logging('netureon.handlers')
 
 class DeviceHandler:
     def __init__(self):
-        self.settings = Settings()  # Use constructor instead of get_instance
+        self.settings = Settings.get_instance()
         self.db_config = self.settings.get_db_config()
         self.profiler = DeviceProfiler()
-        
+        self.logger = logger  # Use module-level logger
+
     def check_for_unknown_devices(self):
         """Check and profile new devices."""
         logger.info("=== Starting device check cycle ===")
@@ -60,9 +61,9 @@ class DeviceHandler:
                         mac
                     ))
                     conn.commit()
-                    logger.info(f"Stored profile for device {mac}")
+                    self.logger.info(f"Stored profile for device {mac}")
         except Exception as e:
-            logger.error(f"Failed to store profile for {mac}: {e}")
+            self.logger.error(f"Failed to store profile for {mac}: {e}")
 
     def profile_device(self, mac, ip, timestamp):
         """Profile a device and send notifications."""
