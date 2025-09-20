@@ -1,4 +1,3 @@
-NetGuard\netguard\config\settings.py
 import os
 from dotenv import load_dotenv
 from webui.models.config import Configuration
@@ -18,7 +17,7 @@ class Settings:
 
     @staticmethod
     def get_notification_settings():
-        """Get notification settings from the database."""
+        """Get notification settings from database."""
         return {
             'enable_email_notifications': Configuration.get_setting('enable_email_notifications'),
             'enable_telegram_notifications': Configuration.get_setting('enable_telegram_notifications'),

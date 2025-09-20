@@ -8,38 +8,17 @@ import logging
 from logging.handlers import RotatingFileHandler
 from device_profiler import DeviceProfiler
 from webui.models.config import Configuration
+from netguard.alerts.daemon import AlertDaemon
+from netguard.logging.logger import setup_logging
+import signal
+import sys
 
-# Set up logging
-def setup_logging():
-    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
-    os.makedirs(log_dir, exist_ok=True)
-    
-    log_file = os.path.join(log_dir, 'alert_daemon.log')
-    
-    handler = RotatingFileHandler(
-        log_file,
-        maxBytes=10*1024*1024,
-        backupCount=5,
-        delay=False,
-        mode='a'
-    )
-    
-    formatter = logging.Formatter(
-        '%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    handler.setFormatter(formatter)
-    
-    logger = logging.getLogger('netureon')
-    logger.setLevel(logging.INFO)
-    
-    # Remove any existing handlers
-    logger.handlers = []
-    
-    logger.addHandler(handler)
-    return logger
+logger = setup_logging('netureon')
 
-logger = setup_logging()
+def handle_shutdown(signum, frame):
+    """Handle shutdown signals gracefully."""
+    logger.info(f"Received signal {signum}, shutting down...")
+    sys.exit(0)
 
 def main():
     # Connect to the PostgreSQL database
@@ -492,9 +471,11 @@ def handle_new_device(device_info):
     except Exception as e:
         logger.error(f"Error in notification handler: {str(e)}")
 
-if __name__ == "__main__":
-    print("Alert daemon started...")
-    while True:
-        check_for_unknown_devices()  # Check for unknown device connections
-        check_alerts()               # Process pending alerts
-        time.sleep(10)  # Check every 10 seconds
+if __name__ == '__main__':
+    # Register signal handlers
+    signal.signal(signal.SIGTERM, handle_shutdown)
+    signal.signal(signal.SIGINT, handle_shutdown)
+    
+    logger.info("Starting Netureon Alert Daemon...")
+    daemon = AlertDaemon()
+    daemon.run()
