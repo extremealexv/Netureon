@@ -1,6 +1,7 @@
 import logging
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from ..models.database import Database
+from ..utils.device_manager import DeviceManager  # Add this import
 
 # Initialize logger for this module
 logger = logging.getLogger(__name__)
@@ -9,58 +10,33 @@ unknown = Blueprint('unknown', __name__)
 
 @unknown.route('/unknown', methods=['GET', 'POST'])
 def unknown_devices():
-    if request.method == 'POST':
-        handle_post_request()
-    
+    """Handle unknown devices page."""
     try:
+        # Get unknown devices from database
         unknown_devices = Database.execute_query("""
-            WITH unknown_devices_formatted AS (
-                SELECT 
-                    id,
-                    mac_address,
-                    COALESCE(
-                        LOWER(REPLACE(mac_address::macaddr::text, '-', ':')), 
-                        'no_mac'
-                    ) as formatted_mac,
-                    last_ip,
-                    first_seen,
-                    last_seen,
-                    threat_level,
-                    notes
-                FROM unknown_devices
-            )
             SELECT 
-                formatted_mac as mac,
-                COALESCE(last_ip::text, 'Unknown') as last_ip,
-                COALESCE(TO_CHAR(first_seen, 'YYYY-MM-DD HH24:MI:SS'), 'Never') as first_seen,
-                COALESCE(TO_CHAR(last_seen, 'YYYY-MM-DD HH24:MI:SS'), 'Never') as last_seen,
-                COALESCE(threat_level, 'medium') as threat_level,
-                COALESCE(notes, '') as notes,
-                (
-                    SELECT COUNT(*) 
-                    FROM discovery_log dl
-                    WHERE dl.mac_address::macaddr = udf.mac_address::macaddr
-                ) as detection_count,
-                'Unknown' as hostname
-            FROM unknown_devices_formatted udf
-            WHERE mac_address IS NOT NULL
-            ORDER BY 
-                CASE threat_level
-                    WHEN 'high' THEN 1
-                    WHEN 'medium' THEN 2
-                    WHEN 'low' THEN 3
-                    ELSE 4
-                END,
-                last_seen DESC NULLS LAST
+                mac_address as mac,
+                hostname,
+                last_ip,
+                first_seen,
+                last_seen,
+                detection_count,
+                threat_level,
+                notes
+            FROM new_devices
+            ORDER BY last_seen DESC
         """)
-        
-        devices = DeviceManager.format_device_list(unknown_devices)
-        
+
+        if unknown_devices:
+            devices = DeviceManager.format_device_list(unknown_devices)
+            return render_template('unknown.html', devices=devices)
+        else:
+            return render_template('unknown.html', devices=[])
+
     except Exception as e:
-        flash(f'Database error: {str(e)}', 'error')
-        devices = []
-    
-    return render_template('unknown.html', devices=devices)
+        logger.error(f"Error loading unknown devices: {str(e)}")
+        flash(f'Error loading devices: {str(e)}', 'error')
+        return render_template('unknown.html', devices=[])
 
 def handle_post_request():
     selected_devices = request.form.getlist('selected_devices')
