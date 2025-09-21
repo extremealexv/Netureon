@@ -32,11 +32,7 @@ def main_page():
             COALESCE(k.risk_level, 'medium') as risk_level,
             k.notes,
             COALESCE(
-                CASE 
-                    WHEN k.open_ports IS NULL OR k.open_ports::text = '' 
-                    THEN '[]' 
-                    ELSE k.open_ports::text
-                END,
+                NULLIF(k.open_ports::text, 'null'),
                 '[]'
             )::jsonb as open_ports,
             EXISTS(
