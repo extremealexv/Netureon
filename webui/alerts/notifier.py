@@ -1,66 +1,104 @@
 import logging
 from ..models.database import Database
+import smtplib
+from email.mime.text import MIMEText
+import requests
 
 class Notifier:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        
-    def send_notification(self, subject, message, notification_type="info"):
-        """Send notification via configured channels."""
-        try:
-            # Get notification settings from database
-            settings = Database.execute_query("""
-                SELECT enable_telegram_notifications, 
-                       enable_email_notifications,
-                       telegram_bot_token,
-                       telegram_chat_id,
-                       smtp_server,
-                       smtp_port,
-                       smtp_username,
-                       smtp_password,
-                       notification_email
+        self._settings = None
+
+    @property
+    def settings(self):
+        """Get settings from database, cache for subsequent calls"""
+        if self._settings is None:
+            result = Database.execute_query("""
+                SELECT 
+                    enable_telegram_notifications, 
+                    enable_email_notifications,
+                    telegram_bot_token,
+                    telegram_chat_id,
+                    smtp_server,
+                    smtp_port,
+                    smtp_username,
+                    smtp_password,
+                    notification_email
                 FROM settings
                 LIMIT 1
             """)
-            
-            if not settings:
-                self.logger.error("No notification settings found")
-                return False
-                
-            settings = settings[0]
-            success = False
-            
-            # Send Telegram notification if enabled
-            if settings['enable_telegram_notifications']:
-                from telegram import Bot
-                bot = Bot(token=settings['telegram_bot_token'])
-                bot.send_message(
-                    chat_id=settings['telegram_chat_id'],
-                    text=f"{subject}\n\n{message}"
-                )
-                success = True
-                self.logger.info("Telegram notification sent")
-                
-            # Send email notification if enabled
-            if settings['enable_email_notifications']:
-                import smtplib
-                from email.mime.text import MIMEText
-                
-                msg = MIMEText(message)
-                msg['Subject'] = subject
-                msg['From'] = settings['smtp_username']
-                msg['To'] = settings['notification_email']
-                
-                with smtplib.SMTP(settings['smtp_server'], settings['smtp_port']) as server:
-                    server.starttls()
-                    server.login(settings['smtp_username'], settings['smtp_password'])
-                    server.send_message(msg)
-                    
-                success = True
-                self.logger.info("Email notification sent")
-                
-            return success
-            
-        except Exception as e:
-            self.logger.error(f"Failed to send notification: {str(e)}")
+            self._settings = result[0] if result else None
+        return self._settings
+
+    def send_notification(self, subject, message, notification_type="info"):
+        """Send notification via configured channels."""
+        if not self.settings:
+            self.logger.error("No notification settings found")
             return False
+
+        success = False
+        errors = []
+
+        # Try Telegram notification
+        if self.settings['enable_telegram_notifications']:
+            try:
+                self._send_telegram(f"{subject}\n\n{message}")
+                success = True
+                self.logger.info("Telegram notification sent successfully")
+            except Exception as e:
+                error_msg = f"Telegram notification failed: {str(e)}"
+                self.logger.error(error_msg)
+                errors.append(error_msg)
+
+        # Try Email notification
+        if self.settings['enable_email_notifications']:
+            try:
+                self._send_email(subject, message)
+                success = True
+                self.logger.info("Email notification sent successfully")
+            except Exception as e:
+                error_msg = f"Email notification failed: {str(e)}"
+                self.logger.error(error_msg)
+                errors.append(error_msg)
+
+        if not success and errors:
+            raise Exception(" | ".join(errors))
+
+        return success
+
+    def _send_telegram(self, message):
+        """Send notification via Telegram."""
+        if not self.settings['telegram_bot_token'] or not self.settings['telegram_chat_id']:
+            raise ValueError("Telegram credentials not configured")
+
+        url = f"https://api.telegram.org/bot{self.settings['telegram_bot_token']}/sendMessage"
+        data = {
+            "chat_id": self.settings['telegram_chat_id'],
+            "text": message,
+            "parse_mode": "HTML"
+        }
+
+        response = requests.post(url, json=data)
+        if not response.ok:
+            raise Exception(f"Telegram API error: {response.text}")
+
+    def _send_email(self, subject, message):
+        """Send notification via Email."""
+        if not all([
+            self.settings['smtp_server'],
+            self.settings['smtp_port'],
+            self.settings['smtp_username'],
+            self.settings['smtp_password'],
+            self.settings['notification_email']
+        ]):
+            raise ValueError("Email settings not fully configured")
+
+        msg = MIMEText(message)
+        msg['Subject'] = subject
+        msg['From'] = self.settings['smtp_username']
+        msg['To'] = self.settings['notification_email']
+
+        with smtplib.SMTP(self.settings['smtp_server'], self.settings['smtp_port']) as server:
+            server.starttls()
+            server.login(self.settings['smtp_username'], self.settings['smtp_password'])
+            server.send_message(msg)

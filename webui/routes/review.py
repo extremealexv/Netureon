@@ -166,8 +166,6 @@ def approve_devices():
             # Send notifications
             try:
                 notifier = Notifier()
-                
-                # Prepare notification message
                 message = "The following devices have been approved:\n\n"
                 for device in approved_devices:
                     message += f"• {device['name']} ({device['mac']})\n"
