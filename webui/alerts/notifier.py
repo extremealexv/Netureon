@@ -30,15 +30,16 @@ class Notifier:
                 """)
                 self._settings = result[0] if result else None
                 if self._settings:
-                    # Handle PostgreSQL boolean values correctly
-                    self._settings['enable_telegram_notifications'] = (
-                        str(self._settings['enable_telegram_notifications']).lower() in ('true', 't', '1', 'yes')
+                    # PostgreSQL boolean values are already Python booleans
+                    # Just ensure they're not None
+                    self._settings['enable_telegram_notifications'] = bool(
+                        self._settings.get('enable_telegram_notifications', False)
                     )
-                    self._settings['enable_email_notifications'] = (
-                        str(self._settings['enable_email_notifications']).lower() in ('true', 't', '1', 'yes')
+                    self._settings['enable_email_notifications'] = bool(
+                        self._settings.get('enable_email_notifications', False)
                     )
                     
-                    self.logger.debug("Settings loaded with values:")
+                    self.logger.debug("Settings loaded:")
                     self.logger.debug(f"Telegram enabled: {self._settings['enable_telegram_notifications']}")
                     self.logger.debug(f"Email enabled: {self._settings['enable_email_notifications']}")
                     self.logger.debug(f"Settings raw data: {self._settings}")
