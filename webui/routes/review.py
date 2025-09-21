@@ -311,3 +311,26 @@ def block_devices():
     except Exception as e:
         logger.error(f"Error in block_devices: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@review.route('/review/test-notifications')
+def test_notifications():
+    """Test notification settings."""
+    try:
+        notifier = Notifier()
+        status = notifier.test_notification_settings()
+        
+        # Try sending a test message if settings are configured
+        if (status['telegram']['configured'] or status['email']['configured']):
+            try:
+                notifier.send_notification(
+                    "Test Notification",
+                    "This is a test notification from NetGuard.",
+                    "info"
+                )
+                status['test_message'] = 'Test message sent successfully'
+            except Exception as e:
+                status['test_message'] = f'Error sending test message: {str(e)}'
+        
+        return jsonify(status)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
