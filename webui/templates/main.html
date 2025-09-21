@@ -67,6 +67,7 @@
             border-radius: 8px;
             padding: 1rem;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
         }
 
         .device-header {
@@ -169,6 +170,19 @@
             background-color: #d4edda;
             color: #155724;
         }
+
+        .form-check {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+        }
+
+        .form-check-input {
+            width: 1.2em;
+            height: 1.2em;
+            margin-top: 0.25em;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -198,6 +212,10 @@
             <div class="device-grid">
                 {% for device in devices %}
                 <div class="device-card">
+                    <div class="form-check float-end">
+                        <input class="form-check-input" type="checkbox" name="selected_devices" 
+                               value="{{ device.mac_address }}" id="device-{{ loop.index }}">
+                    </div>
                     <div class="device-header">
                         <h3>{{ device.hostname or 'Hostname not found' }}</h3>
                         {% if device.has_alerts %}
@@ -234,11 +252,6 @@
                 <button type="submit" name="action" value="delete" class="btn btn-danger">
                     🗑️ Remove Device
                 </button>
-                <select name="threat_level" class="form-select">
-                    <option value="low">Low Risk</option>
-                    <option value="medium" selected>Medium Risk</option>
-                    <option value="high">High Risk</option>
-                </select>
                 <input type="text" name="notes" placeholder="Add notes" class="form-control">
             </div>
         </form>
