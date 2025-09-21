@@ -105,7 +105,7 @@ function approveSelected() {
 function blockSelected() {
     const selected = getSelectedDevices();
     if (selected.length === 0) {
-        alert('Please select devices to block');
+        showAlert('Please select devices to block', 'warning');
         return;
     }
     
@@ -121,22 +121,26 @@ function blockSelected() {
         },
         body: JSON.stringify(data)
     })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
-        }
-        return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
         if (data.success) {
-            location.reload();
+            // Show success message
+            const message = data.message + 
+                (data.notification_error ? '\n\nNotification error: ' + data.notification_error : '');
+            
+            showAlert(message, data.notification_error ? 'warning' : 'success');
+            
+            // Reload after a short delay to show the message
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
         } else {
-            alert(data.error || 'Failed to block devices');
+            showAlert(data.error || 'Failed to block devices', 'error');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Failed to block devices. Please check the logs.');
+        showAlert('Failed to block devices. Please check the logs.', 'error');
     });
 }
 

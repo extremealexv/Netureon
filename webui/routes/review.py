@@ -165,7 +165,6 @@ def approve_devices():
         if approved > 0:
             # Send notifications
             try:
-                from ...alerts.notifier import Notifier
                 notifier = Notifier()
                 
                 # Prepare notification message
@@ -216,7 +215,8 @@ def block_devices():
             return jsonify({'error': 'No devices specified'}), 400
 
         blocked = 0
-        blocked_devices = []  # Track details for notifications
+        blocked_devices = []
+        notification_error = None
 
         for mac in data['devices']:
             try:
@@ -297,10 +297,13 @@ def block_devices():
                 )
             except Exception as e:
                 logger.warning(f"Failed to send block notification: {str(e)}")
+                notification_error = str(e)
 
             return jsonify({
                 'success': True,
-                'message': f'Successfully blocked {blocked} devices'
+                'message': f'Successfully blocked {blocked} devices',
+                'devices': blocked_devices,
+                'notification_error': notification_error
             })
         else:
             return jsonify({
