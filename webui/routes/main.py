@@ -39,7 +39,7 @@ def main_page():
             EXISTS(
                 SELECT 1 FROM alerts a 
                 WHERE a.device_id = k.mac_address 
-                AND a.status = 'new'
+                AND COALESCE(a.status, 'new') = 'new'
             ) as has_alerts
         FROM known_devices k
         ORDER BY k.last_seen DESC
