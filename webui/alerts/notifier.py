@@ -12,26 +12,33 @@ class Notifier:
     @property
     def settings(self):
         """Get settings from database, cache for subsequent calls"""
-        if self._settings is None:
-            result = Database.execute_query("""
-                SELECT 
-                    enable_telegram_notifications, 
-                    enable_email_notifications,
-                    telegram_bot_token,
-                    telegram_chat_id,
-                    smtp_server,
-                    smtp_port,
-                    smtp_username,
-                    smtp_password,
-                    notification_email
-                FROM settings
-                LIMIT 1
-            """)
-            self._settings = result[0] if result else None
-        return self._settings
+        try:
+            if self._settings is None:
+                result = Database.execute_query("""
+                    SELECT 
+                        enable_telegram_notifications, 
+                        enable_email_notifications,
+                        telegram_bot_token,
+                        telegram_chat_id,
+                        smtp_server,
+                        smtp_port,
+                        smtp_username,
+                        smtp_password,
+                        notification_email
+                    FROM settings
+                    LIMIT 1
+                """)
+                self._settings = result[0] if result else None
+                self.logger.debug(f"Loaded settings: {self._settings}")
+            return self._settings
+        except Exception as e:
+            self.logger.error(f"Error loading settings: {str(e)}")
+            return None
 
     def send_notification(self, subject, message, notification_type="info"):
         """Send notification via configured channels."""
+        self.logger.debug(f"Attempting to send notification: {subject}")
+        
         if not self.settings:
             self.logger.error("No notification settings found")
             return False
@@ -40,7 +47,8 @@ class Notifier:
         errors = []
 
         # Try Telegram notification
-        if self.settings['enable_telegram_notifications']:
+        if self.settings.get('enable_telegram_notifications'):
+            self.logger.debug("Attempting Telegram notification")
             try:
                 self._send_telegram(f"{subject}\n\n{message}")
                 success = True
@@ -51,7 +59,8 @@ class Notifier:
                 errors.append(error_msg)
 
         # Try Email notification
-        if self.settings['enable_email_notifications']:
+        if self.settings.get('enable_email_notifications'):
+            self.logger.debug("Attempting Email notification")
             try:
                 self._send_email(subject, message)
                 success = True
@@ -68,9 +77,10 @@ class Notifier:
 
     def _send_telegram(self, message):
         """Send notification via Telegram."""
-        if not self.settings['telegram_bot_token'] or not self.settings['telegram_chat_id']:
+        if not self.settings.get('telegram_bot_token') or not self.settings.get('telegram_chat_id'):
             raise ValueError("Telegram credentials not configured")
 
+        self.logger.debug("Sending Telegram message")
         url = f"https://api.telegram.org/bot{self.settings['telegram_bot_token']}/sendMessage"
         data = {
             "chat_id": self.settings['telegram_chat_id'],
@@ -84,15 +94,16 @@ class Notifier:
 
     def _send_email(self, subject, message):
         """Send notification via Email."""
-        if not all([
-            self.settings['smtp_server'],
-            self.settings['smtp_port'],
-            self.settings['smtp_username'],
-            self.settings['smtp_password'],
-            self.settings['notification_email']
-        ]):
-            raise ValueError("Email settings not fully configured")
+        required_settings = [
+            'smtp_server', 'smtp_port', 'smtp_username', 
+            'smtp_password', 'notification_email'
+        ]
+        
+        missing = [s for s in required_settings if not self.settings.get(s)]
+        if missing:
+            raise ValueError(f"Missing email settings: {', '.join(missing)}")
 
+        self.logger.debug(f"Sending email to {self.settings['notification_email']}")
         msg = MIMEText(message)
         msg['Subject'] = subject
         msg['From'] = self.settings['smtp_username']
