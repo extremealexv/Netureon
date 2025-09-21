@@ -30,7 +30,7 @@ class Notifier:
                         'smtp_port',
                         'smtp_username',
                         'smtp_password',
-                        'smtp_to_address'
+                        'smtp_to_address'  # Changed from notification_email
                     )
                 """)
                 
@@ -47,12 +47,18 @@ class Notifier:
                         # Handle integer conversions
                         elif key == 'smtp_port':
                             self._settings[key] = int(value)
+                        # Map smtp_to_address to notification_email
+                        elif key == 'smtp_to_address':
+                            self._settings['notification_email'] = value
                         else:
                             self._settings[key] = value
                     
-                    self.logger.debug("Settings loaded:")
-                    self.logger.debug(f"Telegram enabled: {self._settings.get('enable_telegram_notifications')}")
-                    self.logger.debug(f"Email enabled: {self._settings.get('enable_email_notifications')}")
+                    # Debug log the email settings
+                    self.logger.debug("Email settings:")
+                    self.logger.debug(f"SMTP server: {self._settings.get('smtp_server')}")
+                    self.logger.debug(f"SMTP port: {self._settings.get('smtp_port')}")
+                    self.logger.debug(f"SMTP username: {self._settings.get('smtp_username')}")
+                    self.logger.debug(f"Notification email: {self._settings.get('notification_email')}")
                     
                     # Early return if no channels are enabled
                     if not (self._settings.get('enable_telegram_notifications') or 
