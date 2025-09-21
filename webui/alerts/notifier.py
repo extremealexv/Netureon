@@ -16,8 +16,8 @@ class Notifier:
             if self._settings is None:
                 result = Database.execute_query("""
                     SELECT 
-                        COALESCE(enable_telegram_notifications, false)::boolean as enable_telegram_notifications,
-                        COALESCE(enable_email_notifications, false)::boolean as enable_email_notifications,
+                        (enable_telegram_notifications = 'true') as enable_telegram_notifications,
+                        (enable_email_notifications = 'true') as enable_email_notifications,
                         telegram_bot_token,
                         telegram_chat_id,
                         smtp_server,
@@ -26,22 +26,29 @@ class Notifier:
                         smtp_password,
                         notification_email
                     FROM settings
-                    LIMIT 1
+                    WHERE id = (SELECT MAX(id) FROM settings)
                 """)
                 self._settings = result[0] if result else None
                 if self._settings:
+                    # Force boolean conversion
+                    self._settings['enable_telegram_notifications'] = (
+                        str(self._settings['enable_telegram_notifications']).lower() == 'true'
+                    )
+                    self._settings['enable_email_notifications'] = (
+                        str(self._settings['enable_email_notifications']).lower() == 'true'
+                    )
+                    
                     self.logger.debug("Settings loaded:")
-                    self.logger.debug(f"Telegram enabled: {bool(self._settings['enable_telegram_notifications'])}")
-                    self.logger.debug(f"Email enabled: {bool(self._settings['enable_email_notifications'])}")
-                    self.logger.debug(f"Telegram token exists: {bool(self._settings['telegram_bot_token'])}")
-                    self.logger.debug(f"Telegram chat ID exists: {bool(self._settings['telegram_chat_id'])}")
-                    self.logger.debug(f"SMTP server: {self._settings['smtp_server']}")
-                    self.logger.debug(f"SMTP port: {self._settings['smtp_port']}")
+                    self.logger.debug(f"Raw telegram enabled: {self._settings['enable_telegram_notifications']}")
+                    self.logger.debug(f"Raw email enabled: {self._settings['enable_email_notifications']}")
+                    self.logger.debug(f"Telegram token: {bool(self._settings['telegram_bot_token'])}")
+                    self.logger.debug(f"Chat ID: {bool(self._settings['telegram_chat_id'])}")
                 else:
                     self.logger.error("No settings found in database")
             return self._settings
         except Exception as e:
             self.logger.error(f"Error loading settings: {str(e)}")
+            self.logger.exception(e)
             return None
 
     def send_notification(self, subject, message, notification_type="info"):
@@ -56,11 +63,11 @@ class Notifier:
         errors = []
         attempted = False
 
-        # Convert string 'true' to boolean True for comparison
-        telegram_enabled = bool(self.settings['enable_telegram_notifications'])
-        email_enabled = bool(self.settings['enable_email_notifications'])
+        # Get notification status directly from settings
+        telegram_enabled = self._settings['enable_telegram_notifications']
+        email_enabled = self._settings['enable_email_notifications']
 
-        self.logger.debug(f"Notification channels status - Telegram: {telegram_enabled}, Email: {email_enabled}")
+        self.logger.debug(f"Notification channels - Telegram: {telegram_enabled}, Email: {email_enabled}")
 
         # Try Telegram notification
         if telegram_enabled:
