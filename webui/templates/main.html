@@ -63,18 +63,25 @@
 
         .device-card {
             background: white;
+            border: 1px solid #ddd;
             border-radius: 8px;
             padding: 1rem;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            display: flex;
-            align-items: flex-start;
         }
 
         .device-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+
+        .device-header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #333;
         }
 
         .device-info {
@@ -82,15 +89,16 @@
             flex-grow: 1;
         }
 
-        .device-info h3 {
-            margin: 0 0 0.5rem 0;
-            color: #2c3e50;
-            font-size: 1.25rem;
+        .device-info p {
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
         }
 
-        .device-info p {
-            margin: 0.25rem 0;
-            color: #6c757d;
+        .port-list {
+            list-style: none;
+            padding-left: 0;
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
         }
 
         .status-badge {
@@ -117,7 +125,6 @@
             align-items: center;
             margin-top: 2rem;
             flex-wrap: wrap;
-        }
         }
 
         .btn:hover {
@@ -192,30 +199,24 @@
                 {% for device in devices %}
                 <div class="device-card">
                     <div class="device-header">
-                        <h3>{{ device.hostname or 'Unknown Device' }}</h3>
+                        <h3>{{ device.hostname or 'Hostname not found' }}</h3>
                         {% if device.has_alerts %}
                             <span class="badge bg-danger">New Alerts</span>
                         {% endif %}
                     </div>
                     <div class="device-info">
                         <p><strong>MAC:</strong> {{ device.mac_address }}</p>
-                        <p><strong>Vendor:</strong> {{ device.vendor or 'Unknown' }}</p>
+                        <p><strong>Vendor:</strong> {{ device.vendor or 'Unknown vendor' }}</p>
                         <p><strong>Type:</strong> {{ device.device_type or 'Unknown' }}</p>
                         <p><strong>Last IP:</strong> {{ device.last_ip }}</p>
-                        <p><strong>Risk Level:</strong> {{ device.risk_level or 'Medium' }}</p>
                         
-                        <!-- Add open ports section -->
-                        {% if device.open_ports %}
+                        {% if device.open_ports and device.open_ports|length > 0 %}
                             <p><strong>Open Ports:</strong></p>
-                            {% if device.open_ports|length > 0 %}
-                                <ul class="list-unstyled mb-2">
-                                {% for port in device.open_ports %}
-                                    <li>{{ port.port }} ({{ port.service }})</li>
-                                {% endfor %}
-                                </ul>
-                            {% else %}
-                                <p class="text-muted mb-2">No open ports detected</p>
-                            {% endif %}
+                            <ul class="port-list">
+                            {% for port in device.open_ports %}
+                                <li>{{ port.port }} ({{ port.service }})</li>
+                            {% endfor %}
+                            </ul>
                         {% endif %}
 
                         {% if device.notes %}
