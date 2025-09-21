@@ -216,11 +216,21 @@ def block_devices():
             return jsonify({'error': 'No devices specified'}), 400
 
         blocked = 0
+        blocked_devices = []  # Track details for notifications
+
         for mac in data['devices']:
             try:
                 mac_clean = mac.strip().lower()
+                
+                # First get device details for notification
+                device_info = Database.execute_query("""
+                    SELECT hostname, vendor, device_type, last_ip 
+                    FROM new_devices 
+                    WHERE mac_address = %s::macaddr
+                """, (mac_clean,))
+                
                 queries = [
-                    # Move device to unknown_devices
+                    # Move device to unknown_devices with proper JSONB casting
                     ("""
                         INSERT INTO unknown_devices (
                             mac_address, hostname, vendor, device_type,
@@ -231,15 +241,19 @@ def block_devices():
                             mac_address, hostname, vendor, device_type,
                             last_ip, first_seen, last_seen,
                             COALESCE(%s, notes) as notes,
-                            'blocked' as status,
-                            open_ports
+                            'blocked'::text as status,
+                            CASE 
+                                WHEN open_ports IS NULL THEN '[]'::jsonb
+                                WHEN open_ports::text = '' THEN '[]'::jsonb
+                                ELSE open_ports::jsonb
+                            END as open_ports
                         FROM new_devices
                         WHERE mac_address = %s::macaddr
                         ON CONFLICT (mac_address) DO UPDATE
                         SET last_ip = EXCLUDED.last_ip,
                             last_seen = EXCLUDED.last_seen,
                             notes = COALESCE(EXCLUDED.notes, unknown_devices.notes),
-                            status = 'blocked'
+                            status = 'blocked'::text
                     """, (data.get('notes'), mac_clean)),
                     
                     # Remove from new_devices
@@ -252,6 +266,14 @@ def block_devices():
                 result = Database.execute_transaction(queries)
                 if result:
                     blocked += 1
+                    if device_info:
+                        device_detail = device_info[0]
+                        blocked_devices.append({
+                            'name': device_detail['hostname'] or 'Unknown device',
+                            'mac': mac_clean,
+                            'ip': device_detail['last_ip'],
+                            'vendor': device_detail['vendor']
+                        })
                     logger.info(f"Device {mac_clean} blocked successfully")
                 
             except Exception as e:
@@ -259,6 +281,23 @@ def block_devices():
                 continue
 
         if blocked > 0:
+            # Send notification about blocked devices
+            try:
+                notifier = Notifier()
+                message = "The following devices have been blocked:\n\n"
+                for device in blocked_devices:
+                    message += f"• {device['name']} ({device['mac']})\n"
+                    message += f"  IP: {device['ip']}\n"
+                    message += f"  Vendor: {device['vendor']}\n\n"
+                
+                notifier.send_notification(
+                    subject="Devices Blocked",
+                    message=message,
+                    notification_type="warning"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send block notification: {str(e)}")
+
             return jsonify({
                 'success': True,
                 'message': f'Successfully blocked {blocked} devices'
