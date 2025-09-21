@@ -1,29 +1,31 @@
 """Database connection and ORM setup."""
 
+import os
+import logging
 from flask import current_app
 from flask_sqlalchemy import SQLAlchemy
 import psycopg2
-import psycopg2.extras
-import logging
+from psycopg2.extras import DictCursor
 
 db = SQLAlchemy()
 
+logger = logging.getLogger(__name__)
+
 class Database:
-    logger = logging.getLogger(__name__)
-    
     @classmethod
     def get_connection(cls):
-        """Get a database connection using Flask config."""
+        """Get database connection with proper configuration."""
         try:
-            return psycopg2.connect(
-                dbname=current_app.config['DB_NAME'],
-                user=current_app.config['DB_USER'],
-                password=current_app.config['DB_PASSWORD'],
-                host=current_app.config['DB_HOST'],
-                port=current_app.config['DB_PORT']
+            conn = psycopg2.connect(
+                dbname="netguard",
+                user="postgres",
+                password="your_password",  # Replace with actual password
+                host="localhost",
+                port="5432"
             )
+            return conn
         except Exception as e:
-            cls.logger.error(f"Database connection failed: {str(e)}")
+            logger.error(f"Database connection failed: {str(e)}")
             raise
 
     @classmethod

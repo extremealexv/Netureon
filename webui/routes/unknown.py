@@ -8,11 +8,10 @@ logger = logging.getLogger(__name__)
 
 unknown = Blueprint('unknown', __name__)
 
-@unknown.route('/unknown', methods=['GET', 'POST'])
+@unknown.route('/unknown', methods=['GET'])
 def unknown_devices():
     """Handle unknown devices page."""
     try:
-        # Get unknown devices from database
         unknown_devices = Database.execute_query("""
             SELECT 
                 mac_address as mac,
@@ -20,8 +19,13 @@ def unknown_devices():
                 last_ip,
                 first_seen,
                 last_seen,
-                detection_count,
-                threat_level,
+                COALESCE(
+                    (SELECT COUNT(*) 
+                     FROM alerts 
+                     WHERE device_mac = mac_address), 
+                    0
+                ) as detection_count,
+                'medium' as threat_level,
                 notes
             FROM new_devices
             ORDER BY last_seen DESC
@@ -81,36 +85,33 @@ def handle_delete_action(selected_devices):
     for mac in selected_devices:
         try:
             mac_clean = mac.strip().lower()
-            # Use a list of dictionaries for parameters
             queries = [
-                ("""
-                    DELETE FROM discovery_log 
-                    WHERE mac_address::macaddr = %(mac)s::macaddr
-                """, {'mac': mac_clean}),
-                
+                # Delete alerts first due to foreign key
                 ("""
                     DELETE FROM alerts 
-                    WHERE device_id::macaddr = %(mac)s::macaddr
+                    WHERE device_mac::macaddr = %(mac)s::macaddr
                 """, {'mac': mac_clean}),
                 
+                # Then delete the device
                 ("""
-                    DELETE FROM unknown_devices 
+                    DELETE FROM new_devices 
                     WHERE mac_address = %(mac)s::macaddr
                     RETURNING 1
                 """, {'mac': mac_clean})
             ]
             
-            # Execute all queries in a transaction
             result = Database.execute_transaction(queries)
             if result:
                 deleted += 1
+                logger.info(f"Successfully deleted device {mac_clean}")
                 
         except Exception as e:
+            logger.error(f"Error deleting device {mac}: {str(e)}")
             flash(f'Error deleting device {mac}: {str(e)}', 'error')
             continue
     
     if deleted > 0:
-        flash(f'Successfully removed {deleted} devices and cleaned up related data', 'success')
+        flash(f'Successfully removed {deleted} devices and related alerts', 'success')
     else:
         flash('No devices were removed. Please check the MAC addresses.', 'warning')
 

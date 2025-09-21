@@ -1,86 +1,12 @@
 import logging
-from flask import Blueprint, render_template, request, flash, jsonify, current_app
+from flask import Blueprint, render_template, request, jsonify, flash
 from ..models.database import Database
 from ..alerts.notifier import Notifier
 
-review = Blueprint('review', __name__)
+# Initialize logger
 logger = logging.getLogger(__name__)
 
-def notify_new_device(device_info):
-    """Send notification about new device detection."""
-    try:
-        notifier = Notifier()
-        
-        # Prepare notification message
-        device_name = device_info['hostname'] or 'Unknown device'
-        message = f"New device detected:\n\n"
-        message += f"• Name: {device_name}\n"
-        message += f"• MAC: {device_info['mac_address']}\n"
-        message += f"• IP: {device_info['last_ip']}\n"
-        message += f"• Vendor: {device_info['vendor'] or 'Unknown'}\n"
-        
-        if device_info['open_ports'] and device_info['open_ports'] != '[]':
-            message += f"• Open ports detected\n"
-        
-        # Send notification
-        notifier.send_notification(
-            subject="New Device Detected",
-            message=message,
-            notification_type="warning"
-        )
-        logger.info(f"New device notification sent for {device_info['mac_address']}")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Failed to send new device notification: {str(e)}")
-        return False
-
-@review.route('/review')
-def review_page():
-    """Display the review page with new devices."""
-    try:
-        # Get new devices and send notifications for each unnotified device
-        new_devices = Database.execute_query("""
-            SELECT 
-                hostname,
-                mac_address,
-                vendor,
-                device_type,
-                last_ip,
-                first_seen,
-                last_seen,
-                COALESCE(reviewed, false) as status,
-                notes,
-                CASE 
-                    WHEN open_ports IS NULL THEN '[]'::jsonb
-                    WHEN open_ports::text = '' THEN '[]'::jsonb
-                    ELSE open_ports::jsonb
-                END as open_ports,
-                notification_sent
-            FROM new_devices
-            ORDER BY first_seen DESC
-        """)
-
-        # Send notifications for new unnotified devices
-        if new_devices:
-            for device in new_devices:
-                if not device.get('notification_sent'):
-                    if notify_new_device(device):
-                        # Update notification status
-                        Database.execute_query("""
-                            UPDATE new_devices 
-                            SET notification_sent = true 
-                            WHERE mac_address = %s::macaddr
-                        """, (device['mac_address'],))
-
-        return render_template(
-            'review.html',
-            devices=new_devices if new_devices else []
-        )
-    except Exception as e:
-        logger.error(f"Error loading review page: {str(e)}")
-        flash('Error loading devices. Please check the logs.', 'error')
-        return render_template('review.html', devices=[])
+review = Blueprint('review', __name__)
 
 @review.route('/review/approve', methods=['POST'])
 def approve_devices():
@@ -92,6 +18,8 @@ def approve_devices():
 
         approved = 0
         approved_devices = []
+
+        logger.info(f"Attempting to approve devices: {data['devices']}")
 
         for mac in data['devices']:
             try:
