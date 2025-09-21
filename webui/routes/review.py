@@ -1,10 +1,10 @@
+import logging
 from flask import Blueprint, render_template, request, flash, jsonify, current_app
 from ..models.database import Database
 from ..alerts.notifier import Notifier
-import logging
 
-logger = logging.getLogger(__name__)
 review = Blueprint('review', __name__)
+logger = logging.getLogger(__name__)
 
 def notify_new_device(device_info):
     """Send notification about new device detection."""
@@ -91,79 +91,61 @@ def approve_devices():
             return jsonify({'error': 'No devices specified'}), 400
 
         approved = 0
-        approved_devices = []  # Track details for notifications
-        
+        approved_devices = []
+
         for mac in data['devices']:
             try:
                 mac_clean = mac.strip().lower()
-                # First get device details for notification
+                
+                # Get device details for notification
                 device_info = Database.execute_query("""
                     SELECT hostname, vendor, device_type, last_ip 
                     FROM new_devices 
                     WHERE mac_address = %s::macaddr
                 """, (mac_clean,))
-                
-                if device_info:
-                    device_detail = device_info[0]
-                    device_name = device_detail['hostname'] or 'Unknown device'
-                    approved_devices.append({
-                        'name': device_name,
-                        'mac': mac_clean,
-                        'ip': device_detail['last_ip'],
-                        'vendor': device_detail['vendor']
-                    })
 
-                queries = [
-                    # Get device info from new_devices
-                    ("""
-                        SELECT hostname, vendor, device_type, last_ip, open_ports, notes
-                        FROM new_devices
-                        WHERE mac_address = %s::macaddr
-                    """, (mac_clean,)),
-                    
-                    # Insert into known_devices with proper JSONB casting
+                # Move device to known_devices
+                result = Database.execute_transaction([
                     ("""
                         INSERT INTO known_devices (
-                            mac_address, hostname, vendor, device_type, 
-                            last_ip, first_seen, last_seen, risk_level,
-                            notes, open_ports
+                            mac_address, hostname, vendor, last_ip, 
+                            first_seen, last_seen, notes
                         )
                         SELECT 
-                            mac_address, hostname, vendor, device_type,
-                            last_ip, first_seen, last_seen, 
-                            %s as risk_level,
-                            COALESCE(%s, notes) as notes,
-                            CASE 
-                                WHEN open_ports IS NULL THEN '[]'::jsonb
-                                WHEN open_ports::text = '' THEN '[]'::jsonb
-                                ELSE open_ports::jsonb
-                            END as open_ports
+                            mac_address, hostname, vendor, last_ip,
+                            first_seen, last_seen, %s as notes
                         FROM new_devices
                         WHERE mac_address = %s::macaddr
-                    """, (
-                        request.json.get('risk_level', 'medium'),
-                        request.json.get('notes'),
-                        mac_clean
-                    )),
+                        ON CONFLICT (mac_address) DO UPDATE
+                        SET last_ip = EXCLUDED.last_ip,
+                            last_seen = EXCLUDED.last_seen,
+                            notes = COALESCE(EXCLUDED.notes, known_devices.notes)
+                    """, (data.get('notes'), mac_clean)),
                     
-                    # Delete from new_devices
                     ("""
                         DELETE FROM new_devices 
                         WHERE mac_address = %s::macaddr
                     """, (mac_clean,))
-                ]
-                
-                result = Database.execute_transaction(queries)
+                ])
+
                 if result:
                     approved += 1
                     logger.info(f"Device {mac_clean} approved successfully")
+                    if device_info:
+                        device_detail = device_info[0]
+                        approved_devices.append({
+                            'name': device_detail['hostname'] or 'Unknown device',
+                            'mac': mac_clean,
+                            'ip': device_detail['last_ip'],
+                            'vendor': device_detail['vendor']
+                        })
                 
             except Exception as e:
                 logger.error(f"Error approving device {mac}: {str(e)}")
                 continue
 
+        # Send notifications about approved devices
         if approved > 0:
-            # Send notifications
             try:
                 notifier = Notifier()
                 message = "The following devices have been approved:\n\n"
@@ -172,33 +154,19 @@ def approve_devices():
                     message += f"  IP: {device['ip']}\n"
                     message += f"  Vendor: {device['vendor']}\n\n"
                 
-                # Send notifications
                 notifier.send_notification(
                     subject="Devices Approved",
                     message=message,
                     notification_type="info"
                 )
-                
                 logger.info(f"Approval notifications sent for {approved} devices")
-                
-                # Return success response with notification status
-                return jsonify({
-                    'success': True,
-                    'message': f'Successfully approved {approved} devices and sent notifications',
-                    'devices': approved_devices
-                })
             except Exception as e:
                 logger.error(f"Error sending notifications: {str(e)}")
-                return jsonify({
-                    'success': True,
-                    'message': f'Successfully approved {approved} devices but failed to send notifications',
-                    'devices': approved_devices,
-                    'notification_error': str(e)
-                })
-        else:
-            return jsonify({
-                'error': 'No devices were approved. Please check the logs.'
-            }), 500
+
+        return jsonify({
+            'success': True,
+            'message': f'Successfully approved {approved} devices'
+        })
             
     except Exception as e:
         logger.error(f"Error in approve_devices: {str(e)}")
