@@ -48,9 +48,28 @@ def approve_devices():
             return jsonify({'error': 'No devices specified'}), 400
 
         approved = 0
+        approved_devices = []  # Track details for notifications
+        
         for mac in data['devices']:
             try:
                 mac_clean = mac.strip().lower()
+                # First get device details for notification
+                device_info = Database.execute_query("""
+                    SELECT hostname, vendor, device_type, last_ip 
+                    FROM new_devices 
+                    WHERE mac_address = %s::macaddr
+                """, (mac_clean,))
+                
+                if device_info:
+                    device_detail = device_info[0]
+                    device_name = device_detail['hostname'] or 'Unknown device'
+                    approved_devices.append({
+                        'name': device_name,
+                        'mac': mac_clean,
+                        'ip': device_detail['last_ip'],
+                        'vendor': device_detail['vendor']
+                    })
+
                 queries = [
                     # Get device info from new_devices
                     ("""
@@ -101,10 +120,41 @@ def approve_devices():
                 continue
 
         if approved > 0:
-            return jsonify({
-                'success': True,
-                'message': f'Successfully approved {approved} devices'
-            })
+            # Send notifications
+            try:
+                from ...alerts.notifier import Notifier
+                notifier = Notifier()
+                
+                # Prepare notification message
+                message = "The following devices have been approved:\n\n"
+                for device in approved_devices:
+                    message += f"• {device['name']} ({device['mac']})\n"
+                    message += f"  IP: {device['ip']}\n"
+                    message += f"  Vendor: {device['vendor']}\n\n"
+                
+                # Send notifications
+                notifier.send_notification(
+                    subject="Devices Approved",
+                    message=message,
+                    notification_type="info"
+                )
+                
+                logger.info(f"Approval notifications sent for {approved} devices")
+                
+                # Return success response with notification status
+                return jsonify({
+                    'success': True,
+                    'message': f'Successfully approved {approved} devices and sent notifications',
+                    'devices': approved_devices
+                })
+            except Exception as e:
+                logger.error(f"Error sending notifications: {str(e)}")
+                return jsonify({
+                    'success': True,
+                    'message': f'Successfully approved {approved} devices but failed to send notifications',
+                    'devices': approved_devices,
+                    'notification_error': str(e)
+                })
         else:
             return jsonify({
                 'error': 'No devices were approved. Please check the logs.'

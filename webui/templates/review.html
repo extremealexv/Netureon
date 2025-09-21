@@ -82,14 +82,23 @@ function approveSelected() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            location.reload();
+            // Show success message
+            const message = data.message + 
+                (data.notification_error ? '\n\nNotification error: ' + data.notification_error : '');
+            
+            showAlert(message, data.notification_error ? 'warning' : 'success');
+            
+            // Reload after a short delay to show the message
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
         } else {
-            alert(data.error || 'Failed to approve devices');
+            showAlert(data.error || 'Failed to approve devices', 'error');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Failed to approve devices. Please check the logs.');
+        showAlert('Failed to approve devices. Please check the logs.', 'error');
     });
 }
 
@@ -134,6 +143,27 @@ function blockSelected() {
 function getSelectedDevices() {
     return Array.from(document.querySelectorAll('input[type="checkbox"]:checked'))
         .map(cb => cb.value);
+}
+
+function showAlert(message, type = 'info') {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.role = 'alert';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    // Insert at the top of the content
+    document.querySelector('.container').insertBefore(
+        alertDiv,
+        document.querySelector('.container').firstChild
+    );
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
 }
 </script>
 {% endblock %}
