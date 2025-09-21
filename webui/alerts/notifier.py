@@ -56,46 +56,80 @@ class Notifier:
 
         success = False
         errors = []
+        attempted = False
 
-        # Try Telegram notification with better error handling
-        if self.settings.get('enable_telegram_notifications'):
+        # Try Telegram notification - check boolean field explicitly
+        if self.settings.get('enable_telegram_notifications') is True:  # Changed to explicit True comparison
+            attempted = True
             self.logger.debug("Telegram notifications are enabled")
             try:
+                if not self.settings.get('telegram_bot_token'):
+                    raise ValueError("Telegram bot token not configured")
+                if not self.settings.get('telegram_chat_id'):
+                    raise ValueError("Telegram chat ID not configured")
+                
                 self._send_telegram(f"{subject}\n\n{message}")
                 success = True
                 self.logger.info("Telegram notification sent successfully")
             except Exception as e:
                 error_msg = f"Telegram notification failed: {str(e)}"
                 self.logger.error(error_msg)
-                self.logger.exception(e)  # This will log the full stack trace
+                self.logger.exception(e)
                 errors.append(error_msg)
 
-        # Try Email notification with better error handling
-        if self.settings.get('enable_email_notifications'):
+        # Try Email notification - check boolean field explicitly
+        if self.settings.get('enable_email_notifications') is True:  # Changed to explicit True comparison
+            attempted = True
             self.logger.debug("Email notifications are enabled")
             try:
+                smtp_settings = {
+                    'server': self.settings.get('smtp_server'),
+                    'port': self.settings.get('smtp_port'),
+                    'username': self.settings.get('smtp_username'),
+                    'password': self.settings.get('smtp_password'),
+                    'from_address': self.settings.get('smtp_from_address'),
+                    'to_address': self.settings.get('smtp_to_address')
+                }
+                
+                if not all(smtp_settings.values()):
+                    missing = [k for k, v in smtp_settings.items() if not v]
+                    raise ValueError(f"Missing email settings: {', '.join(missing)}")
+                
                 self._send_email(subject, message)
                 success = True
                 self.logger.info("Email notification sent successfully")
             except Exception as e:
                 error_msg = f"Email notification failed: {str(e)}"
                 self.logger.error(error_msg)
-                self.logger.exception(e)  # This will log the full stack trace
+                self.logger.exception(e)
                 errors.append(error_msg)
 
+        # Log the attempt status
+        self.logger.debug(f"Notification attempt status: attempted={attempted}, success={success}")
+        if errors:
+            self.logger.debug(f"Errors encountered: {errors}")
+
+        if not attempted:
+            error_message = "No notification channels are enabled in configuration"
+            self.logger.error(error_message)
+            raise Exception(error_message)
+
         if not success:
-            error_message = " | ".join(errors) if errors else "No notification channels succeeded"
-            self.logger.error(f"All notification attempts failed: {error_message}")
+            error_message = " | ".join(errors) if errors else "All notification attempts failed"
+            self.logger.error(f"Notification failed: {error_message}")
             raise Exception(error_message)
 
         return success
 
     def _send_telegram(self, message):
         """Send notification via Telegram."""
-        if not self.settings.get('telegram_bot_token') or not self.settings.get('telegram_chat_id'):
-            raise ValueError("Telegram credentials not configured")
+        self.logger.debug("Preparing Telegram message")
+        
+        if not self.settings.get('telegram_bot_token'):
+            raise ValueError("Telegram bot token not configured")
+        if not self.settings.get('telegram_chat_id'):
+            raise ValueError("Telegram chat ID not configured")
 
-        self.logger.debug("Sending Telegram message")
         url = f"https://api.telegram.org/bot{self.settings['telegram_bot_token']}/sendMessage"
         data = {
             "chat_id": self.settings['telegram_chat_id'],
@@ -103,9 +137,15 @@ class Notifier:
             "parse_mode": "HTML"
         }
 
-        response = requests.post(url, json=data)
+        self.logger.debug(f"Sending Telegram message to chat ID: {self.settings['telegram_chat_id']}")
+        response = requests.post(url, json=data, timeout=10)  # Added timeout
+        
         if not response.ok:
-            raise Exception(f"Telegram API error: {response.text}")
+            error_msg = f"Telegram API error: {response.status_code} - {response.text}"
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
+        
+        self.logger.debug("Telegram message sent successfully")
 
     def _send_email(self, subject, message):
         """Send notification via Email."""
