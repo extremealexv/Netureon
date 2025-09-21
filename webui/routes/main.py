@@ -31,10 +31,11 @@ def main_page():
             k.last_seen,
             COALESCE(k.risk_level, 'medium') as risk_level,
             k.notes,
-            COALESCE(
-                NULLIF(k.open_ports::text, 'null'),
-                '[]'
-            )::jsonb as open_ports,
+            (CASE
+                WHEN k.open_ports IS NULL OR k.open_ports::text = 'null' OR k.open_ports::text = '' 
+                THEN '[]'::jsonb
+                ELSE k.open_ports::jsonb
+            END) as open_ports,
             EXISTS(
                 SELECT 1 FROM alerts a 
                 WHERE a.device_id = k.mac_address 
