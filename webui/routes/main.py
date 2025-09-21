@@ -21,27 +21,33 @@ def main_page():
             handle_delete_action(selected_devices)
     
     known_hosts = Database.execute_query("""
+        WITH formatted_devices AS (
+            SELECT 
+                hostname,
+                mac_address,
+                vendor,
+                device_type,
+                last_ip,
+                first_seen,
+                last_seen,
+                COALESCE(risk_level, 'medium') as risk_level,
+                notes,
+                CASE 
+                    WHEN open_ports IS NULL THEN '[]'::jsonb
+                    WHEN jsonb_typeof(open_ports::jsonb) IS NULL THEN '[]'::jsonb
+                    WHEN open_ports::text = '' THEN '[]'::jsonb
+                    ELSE open_ports::jsonb
+                END as open_ports
+            FROM known_devices
+        )
         SELECT 
-            k.hostname,
-            k.mac_address,
-            k.vendor,
-            k.device_type,
-            k.last_ip,
-            k.first_seen,
-            k.last_seen,
-            COALESCE(k.risk_level, 'medium') as risk_level,
-            k.notes,
-            (CASE
-                WHEN k.open_ports IS NULL OR k.open_ports::text = 'null' OR k.open_ports::text = '' 
-                THEN '[]'::jsonb
-                ELSE k.open_ports::jsonb
-            END) as open_ports,
+            k.*,
             EXISTS(
                 SELECT 1 FROM alerts a 
                 WHERE a.device_id = k.mac_address 
                 AND COALESCE(a.status, 'new') = 'new'
             ) as has_alerts
-        FROM known_devices k
+        FROM formatted_devices k
         ORDER BY k.last_seen DESC
     """)
     
