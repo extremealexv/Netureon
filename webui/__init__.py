@@ -14,8 +14,8 @@ def create_app():
     """Create and configure the Flask application."""
     app = Flask(__name__)
     
-    # Configure logging first
-    configure_logging()
+    # Configure logging with app context
+    configure_logging(app)
     
     # Load configuration
     app.config.from_object('webui.config.config.Config')
@@ -64,6 +64,6 @@ def create_app():
     @app.before_request
     def before_request():
         # Reconfigure logging on each request to pick up changes
-        configure_logging()
+        configure_logging(app)
     
     return app
