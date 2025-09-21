@@ -16,8 +16,8 @@ class Notifier:
             if self._settings is None:
                 result = Database.execute_query("""
                     SELECT 
-                        (enable_telegram_notifications = 'true') as enable_telegram_notifications,
-                        (enable_email_notifications = 'true') as enable_email_notifications,
+                        enable_telegram_notifications,
+                        enable_email_notifications,
                         telegram_bot_token,
                         telegram_chat_id,
                         smtp_server,
@@ -30,19 +30,18 @@ class Notifier:
                 """)
                 self._settings = result[0] if result else None
                 if self._settings:
-                    # Force boolean conversion
+                    # Handle PostgreSQL boolean values correctly
                     self._settings['enable_telegram_notifications'] = (
-                        str(self._settings['enable_telegram_notifications']).lower() == 'true'
+                        str(self._settings['enable_telegram_notifications']).lower() in ('true', 't', '1', 'yes')
                     )
                     self._settings['enable_email_notifications'] = (
-                        str(self._settings['enable_email_notifications']).lower() == 'true'
+                        str(self._settings['enable_email_notifications']).lower() in ('true', 't', '1', 'yes')
                     )
                     
-                    self.logger.debug("Settings loaded:")
-                    self.logger.debug(f"Raw telegram enabled: {self._settings['enable_telegram_notifications']}")
-                    self.logger.debug(f"Raw email enabled: {self._settings['enable_email_notifications']}")
-                    self.logger.debug(f"Telegram token: {bool(self._settings['telegram_bot_token'])}")
-                    self.logger.debug(f"Chat ID: {bool(self._settings['telegram_chat_id'])}")
+                    self.logger.debug("Settings loaded with values:")
+                    self.logger.debug(f"Telegram enabled: {self._settings['enable_telegram_notifications']}")
+                    self.logger.debug(f"Email enabled: {self._settings['enable_email_notifications']}")
+                    self.logger.debug(f"Settings raw data: {self._settings}")
                 else:
                     self.logger.error("No settings found in database")
             return self._settings
