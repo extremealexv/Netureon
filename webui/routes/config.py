@@ -2,6 +2,8 @@
 from flask import Blueprint, render_template, request, flash, redirect, url_for
 from webui.models.config import Configuration
 from webui.models.database import db
+from ..utils.logging_manager import configure_logging
+import logging
 
 config_bp = Blueprint('config', __name__)
 
@@ -46,7 +48,24 @@ def config():
                     flash(f'Failed to update scanning interval: {str(e)}', 'error')
                     return redirect(url_for('config.config'))
         
-        flash('Configuration updated successfully', 'success')
+        # Handle logging level
+        logging_level = request.form.get('logging_level', 'INFO')
+        try:
+            if hasattr(logging, logging_level):
+                db.execute_query(
+                    "UPDATE configuration SET value = %s WHERE key = 'logging_level'",
+                    (logging_level,)
+                )
+                # Reconfigure logging across all modules
+                if configure_logging():
+                    flash(f'Logging level updated to {logging_level}', 'success')
+                else:
+                    flash('Failed to apply logging level changes', 'error')
+            else:
+                flash(f'Invalid logging level: {logging_level}', 'error')
+        except Exception as e:
+            flash(f'Failed to update logging level: {str(e)}', 'error')
+            
         return redirect(url_for('config.config'))
 
     # Get current settings

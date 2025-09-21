@@ -27,7 +27,8 @@ class Notifier:
                         'smtp_port',
                         'smtp_username',
                         'smtp_password',
-                        'smtp_to_address'
+                        'smtp_to_address',
+                        'logging_level'
                     )
                 """)
                 
@@ -79,6 +80,13 @@ class Notifier:
                     self.logger.error("No configuration found in database")
                     return None
                     
+            # Handle logging level
+            if self._settings.get('logging_level'):
+                level = self._settings['logging_level'].upper()
+                if hasattr(logging, level):
+                    self.logger.setLevel(getattr(logging, level))
+                    self.logger.debug(f"Notifier logging level set to {level}")
+
             return self._settings
         except Exception as e:
             self.logger.error(f"Error loading settings: {str(e)}")

@@ -6,13 +6,13 @@ import psycopg2
 import psycopg2.extras
 import logging
 
-logger = logging.getLogger(__name__)
-
 db = SQLAlchemy()
 
 class Database:
-    @staticmethod
-    def get_connection():
+    logger = logging.getLogger(__name__)
+    
+    @classmethod
+    def get_connection(cls):
         """Get a database connection using Flask config."""
         try:
             return psycopg2.connect(
@@ -23,14 +23,16 @@ class Database:
                 port=current_app.config['DB_PORT']
             )
         except Exception as e:
-            logger.error(f"Database connection failed: {str(e)}")
+            cls.logger.error(f"Database connection failed: {str(e)}")
             raise
 
-    @staticmethod
-    def execute_query(query, params=None):
+    @classmethod
+    def execute_query(cls, query, params=None):
+        cls.logger.debug(f"Executing query: {query}")
+        cls.logger.debug(f"Parameters: {params}")
         """Execute a SQL query and return results."""
         try:
-            with Database.get_connection() as conn:
+            with cls.get_connection() as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                     cur.execute(query, params)
                     try:
@@ -38,9 +40,9 @@ class Database:
                     except psycopg2.ProgrammingError:
                         return None
         except Exception as e:
-            logger.error(f"Query execution failed: {str(e)}")
-            logger.error(f"Query: {query}")
-            logger.error(f"Params: {params}")
+            cls.logger.error(f"Query execution failed: {str(e)}")
+            cls.logger.error(f"Query: {query}")
+            cls.logger.error(f"Params: {params}")
             raise
 
     @staticmethod
