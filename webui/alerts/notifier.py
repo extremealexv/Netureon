@@ -30,7 +30,7 @@ class Notifier:
                         'smtp_port',
                         'smtp_username',
                         'smtp_password',
-                        'smtp_to_address'  # Changed from notification_email
+                        'smtp_to_address'
                     )
                 """)
                 
@@ -46,7 +46,11 @@ class Notifier:
                             self._settings[key] = value.lower() == 'true'
                         # Handle integer conversions
                         elif key == 'smtp_port':
-                            self._settings[key] = int(value)
+                            try:
+                                self._settings[key] = int(value)
+                            except (ValueError, TypeError):
+                                self.logger.error(f"Invalid SMTP port value: {value}")
+                                self._settings[key] = 587  # Default SMTP port
                         # Map smtp_to_address to notification_email
                         elif key == 'smtp_to_address':
                             self._settings['notification_email'] = value
@@ -54,11 +58,14 @@ class Notifier:
                             self._settings[key] = value
                     
                     # Debug log the email settings
-                    self.logger.debug("Email settings:")
-                    self.logger.debug(f"SMTP server: {self._settings.get('smtp_server')}")
-                    self.logger.debug(f"SMTP port: {self._settings.get('smtp_port')}")
-                    self.logger.debug(f"SMTP username: {self._settings.get('smtp_username')}")
-                    self.logger.debug(f"Notification email: {self._settings.get('notification_email')}")
+                    self.logger.debug("Settings loaded:")
+                    self.logger.debug(f"Email enabled: {self._settings.get('enable_email_notifications')}")
+                    self.logger.debug(f"Telegram enabled: {self._settings.get('enable_telegram_notifications')}")
+                    self.logger.debug(f"SMTP settings:")
+                    self.logger.debug(f"  Server: {self._settings.get('smtp_server')}")
+                    self.logger.debug(f"  Port: {self._settings.get('smtp_port')}")
+                    self.logger.debug(f"  Username: {self._settings.get('smtp_username')}")
+                    self.logger.debug(f"  To Address: {self._settings.get('notification_email')}")
                     
                     # Early return if no channels are enabled
                     if not (self._settings.get('enable_telegram_notifications') or 
