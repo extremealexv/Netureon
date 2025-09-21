@@ -14,44 +14,53 @@ class Notifier:
         """Get settings from database, cache for subsequent calls"""
         try:
             if self._settings is None:
-                # Query settings with explicit boolean casting
+                # Query settings using key-value structure
                 result = Database.execute_query("""
                     SELECT 
-                        CAST(enable_telegram_notifications AS bool) as enable_telegram_notifications,
-                        CAST(enable_email_notifications AS bool) as enable_email_notifications,
-                        telegram_bot_token,
-                        telegram_chat_id,
-                        smtp_server,
-                        smtp_port,
-                        smtp_username,
-                        smtp_password,
-                        notification_email
-                    FROM settings
-                    WHERE id = (SELECT MAX(id) FROM settings)
+                        key, 
+                        value,
+                        updated_at
+                    FROM configuration 
+                    WHERE key IN (
+                        'enable_telegram_notifications',
+                        'enable_email_notifications',
+                        'telegram_bot_token',
+                        'telegram_chat_id',
+                        'smtp_server',
+                        'smtp_port',
+                        'smtp_username',
+                        'smtp_password',
+                        'smtp_to_address'
+                    )
                 """)
                 
-                if result and result[0]:
-                    self._settings = result[0]
-                    # Log raw values for debugging
-                    self.logger.debug(f"Raw settings from DB: {self._settings}")
+                if result:
+                    # Convert result to dictionary
+                    self._settings = {}
+                    for row in result:
+                        key = row['key']
+                        value = row['value']
+                        
+                        # Handle boolean conversions
+                        if key in ['enable_telegram_notifications', 'enable_email_notifications']:
+                            self._settings[key] = value.lower() == 'true'
+                        # Handle integer conversions
+                        elif key == 'smtp_port':
+                            self._settings[key] = int(value)
+                        else:
+                            self._settings[key] = value
                     
-                    # Force boolean conversion and provide defaults
-                    self._settings['enable_telegram_notifications'] = (
-                        True if self._settings.get('enable_telegram_notifications') in (True, 't', 'true', 1)
-                        else False
-                    )
-                    self._settings['enable_email_notifications'] = (
-                        True if self._settings.get('enable_email_notifications') in (True, 't', 'true', 1)
-                        else False
-                    )
+                    self.logger.debug("Settings loaded:")
+                    self.logger.debug(f"Telegram enabled: {self._settings.get('enable_telegram_notifications')}")
+                    self.logger.debug(f"Email enabled: {self._settings.get('enable_email_notifications')}")
                     
-                    self.logger.debug("Notification settings loaded:")
-                    self.logger.debug(f"Telegram enabled: {self._settings['enable_telegram_notifications']}")
-                    self.logger.debug(f"Email enabled: {self._settings['enable_email_notifications']}")
-                    self.logger.debug(f"Telegram token present: {bool(self._settings.get('telegram_bot_token'))}")
-                    self.logger.debug(f"Chat ID present: {bool(self._settings.get('telegram_chat_id'))}")
+                    # Early return if no channels are enabled
+                    if not (self._settings.get('enable_telegram_notifications') or 
+                            self._settings.get('enable_email_notifications')):
+                        self.logger.error("No notification channels are enabled in configuration")
+                        return None
                 else:
-                    self.logger.error("No settings found in database")
+                    self.logger.error("No configuration found in database")
                     return None
                     
             return self._settings
