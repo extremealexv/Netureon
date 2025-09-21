@@ -1,6 +1,9 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
-from webui.models.database import Database
-from webui.utils.device_utils import DeviceManager
+import logging
+from flask import Blueprint, render_template, request, jsonify, current_app
+from ..models.database import Database
+
+# Initialize logger for this module
+logger = logging.getLogger(__name__)
 
 unknown = Blueprint('unknown', __name__)
 
@@ -166,3 +169,40 @@ def handle_approve_action(selected_devices):
     
     if moved > 0:
         flash(f'Moved {moved} devices to known devices', 'success')
+
+@unknown.route('/unknown/delete', methods=['POST'])
+def delete_device():
+    """Delete a device from new_devices table."""
+    try:
+        data = request.json
+        if not data or 'mac' not in data:
+            return jsonify({'error': 'No MAC address specified'}), 400
+
+        mac = data['mac'].strip().lower()
+        
+        # Log deletion attempt
+        logger.info(f"Attempting to delete device: {mac}")
+
+        # Delete device from new_devices
+        result = Database.execute_query(
+            "DELETE FROM new_devices WHERE mac_address = %s::macaddr",
+            (mac,)
+        )
+
+        if result:
+            logger.info(f"Device {mac} deleted successfully")
+            return jsonify({
+                'success': True,
+                'message': f'Device {mac} deleted successfully'
+            })
+        else:
+            logger.error(f"Device {mac} not found or couldn't be deleted")
+            return jsonify({
+                'error': f'Device {mac} not found or couldn\'t be deleted'
+            }), 404
+
+    except Exception as e:
+        error_msg = f"Error deleting device {mac if 'mac' in locals() else 'unknown'}: {str(e)}"
+        logger.error(error_msg)
+        logger.exception("Delete device error details:")
+        return jsonify({'error': error_msg}), 500
