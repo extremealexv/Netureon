@@ -14,10 +14,11 @@ class Notifier:
         """Get settings from database, cache for subsequent calls"""
         try:
             if self._settings is None:
+                # Query settings with explicit boolean casting
                 result = Database.execute_query("""
                     SELECT 
-                        enable_telegram_notifications,
-                        enable_email_notifications,
+                        CAST(enable_telegram_notifications AS bool) as enable_telegram_notifications,
+                        CAST(enable_email_notifications AS bool) as enable_email_notifications,
                         telegram_bot_token,
                         telegram_chat_id,
                         smtp_server,
@@ -28,23 +29,31 @@ class Notifier:
                     FROM settings
                     WHERE id = (SELECT MAX(id) FROM settings)
                 """)
-                self._settings = result[0] if result else None
-                if self._settings:
-                    # PostgreSQL boolean values are already Python booleans
-                    # Just ensure they're not None
-                    self._settings['enable_telegram_notifications'] = bool(
-                        self._settings.get('enable_telegram_notifications', False)
+                
+                if result and result[0]:
+                    self._settings = result[0]
+                    # Log raw values for debugging
+                    self.logger.debug(f"Raw settings from DB: {self._settings}")
+                    
+                    # Force boolean conversion and provide defaults
+                    self._settings['enable_telegram_notifications'] = (
+                        True if self._settings.get('enable_telegram_notifications') in (True, 't', 'true', 1)
+                        else False
                     )
-                    self._settings['enable_email_notifications'] = bool(
-                        self._settings.get('enable_email_notifications', False)
+                    self._settings['enable_email_notifications'] = (
+                        True if self._settings.get('enable_email_notifications') in (True, 't', 'true', 1)
+                        else False
                     )
                     
-                    self.logger.debug("Settings loaded:")
+                    self.logger.debug("Notification settings loaded:")
                     self.logger.debug(f"Telegram enabled: {self._settings['enable_telegram_notifications']}")
                     self.logger.debug(f"Email enabled: {self._settings['enable_email_notifications']}")
-                    self.logger.debug(f"Settings raw data: {self._settings}")
+                    self.logger.debug(f"Telegram token present: {bool(self._settings.get('telegram_bot_token'))}")
+                    self.logger.debug(f"Chat ID present: {bool(self._settings.get('telegram_chat_id'))}")
                 else:
                     self.logger.error("No settings found in database")
+                    return None
+                    
             return self._settings
         except Exception as e:
             self.logger.error(f"Error loading settings: {str(e)}")
