@@ -5,38 +5,17 @@ from dotenv import load_dotenv
 from flask import Flask
 from .config.config import Config
 from .models.database import db
-import logging
-from logging.handlers import RotatingFileHandler
+from .utils.logging_manager import configure_logging
 
 # Load environment variables
 load_dotenv()
 
-# Configure logging
-log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-log_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'netureon.log')
-
-# Create logs directory if it doesn't exist
-os.makedirs(os.path.dirname(log_file), exist_ok=True)
-
-# Setup file handler with rotation
-file_handler = RotatingFileHandler(log_file, maxBytes=10485760, backupCount=5)
-file_handler.setFormatter(log_formatter)
-file_handler.setLevel(logging.DEBUG)
-
-# Setup console handler
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(log_formatter)
-console_handler.setLevel(logging.INFO)
-
-# Configure root logger
-root_logger = logging.getLogger()
-root_logger.setLevel(logging.DEBUG)
-root_logger.addHandler(file_handler)
-root_logger.addHandler(console_handler)
-
 def create_app():
     """Create and configure the Flask application."""
     app = Flask(__name__)
+    
+    # Configure logging first
+    configure_logging()
     
     # Load configuration
     app.config.from_object('webui.config.config.Config')
@@ -81,5 +60,10 @@ def create_app():
     app.register_blueprint(unknown)
     app.register_blueprint(system_bp)
     app.register_blueprint(config_bp)
+    
+    @app.before_request
+    def before_request():
+        # Reconfigure logging on each request to pick up changes
+        configure_logging()
     
     return app
