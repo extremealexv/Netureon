@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, flash, jsonify, current_app
 from ..models.database import Database
-from ..alerts.notifier import Notifier
+from netureon.alerts.notifier import Notifier  # Updated import path
 import logging
 import asyncio
 
