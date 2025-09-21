@@ -14,14 +14,18 @@ def review_page():
             SELECT 
                 hostname,
                 mac_address,
-                vendor, 
+                vendor,
                 device_type,
                 last_ip,
                 first_seen,
                 last_seen,
                 COALESCE(reviewed, false) as status,
                 notes,
-                COALESCE(open_ports, '[]'::jsonb) as open_ports
+                CASE 
+                    WHEN open_ports IS NULL THEN '[]'::jsonb
+                    WHEN open_ports::text = '' THEN '[]'::jsonb
+                    ELSE open_ports::jsonb
+                END as open_ports
             FROM new_devices
             ORDER BY first_seen DESC
         """)
