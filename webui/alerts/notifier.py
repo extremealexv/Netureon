@@ -16,10 +16,7 @@ class Notifier:
             if self._settings is None:
                 # Query settings using key-value structure
                 result = Database.execute_query("""
-                    SELECT 
-                        key, 
-                        value,
-                        updated_at
+                    SELECT key, value, updated_at
                     FROM configuration 
                     WHERE key IN (
                         'enable_telegram_notifications',
@@ -35,42 +32,48 @@ class Notifier:
                 """)
                 
                 if result:
-                    # Convert result to dictionary
+                    # Convert result to dictionary and log raw values
                     self._settings = {}
+                    self.logger.debug("Raw configuration values:")
                     for row in result:
                         key = row['key']
                         value = row['value']
+                        self.logger.debug(f"  {key}: {value}")
                         
-                        # Handle boolean conversions
+                        # Handle boolean conversions with detailed logging
                         if key in ['enable_telegram_notifications', 'enable_email_notifications']:
-                            self._settings[key] = value.lower() == 'true'
-                        # Handle integer conversions
+                            is_enabled = str(value).lower() in ('true', 't', '1', 'yes')
+                            self._settings[key] = is_enabled
+                            self.logger.debug(f"  Converting {key}: '{value}' -> {is_enabled}")
                         elif key == 'smtp_port':
                             try:
                                 self._settings[key] = int(value)
                             except (ValueError, TypeError):
                                 self.logger.error(f"Invalid SMTP port value: {value}")
-                                self._settings[key] = 587  # Default SMTP port
-                        # Map smtp_to_address to notification_email
+                                self._settings[key] = 587
                         elif key == 'smtp_to_address':
                             self._settings['notification_email'] = value
+                            self.logger.debug(f"  Mapped smtp_to_address -> notification_email: {value}")
                         else:
                             self._settings[key] = value
                     
-                    # Debug log the email settings
-                    self.logger.debug("Settings loaded:")
-                    self.logger.debug(f"Email enabled: {self._settings.get('enable_email_notifications')}")
-                    self.logger.debug(f"Telegram enabled: {self._settings.get('enable_telegram_notifications')}")
-                    self.logger.debug(f"SMTP settings:")
-                    self.logger.debug(f"  Server: {self._settings.get('smtp_server')}")
-                    self.logger.debug(f"  Port: {self._settings.get('smtp_port')}")
-                    self.logger.debug(f"  Username: {self._settings.get('smtp_username')}")
-                    self.logger.debug(f"  To Address: {self._settings.get('notification_email')}")
+                    # Log final settings state
+                    self.logger.debug("\nFinal settings state:")
+                    self.logger.debug(f"Email notifications enabled: {self._settings.get('enable_email_notifications')}")
+                    self.logger.debug(f"Telegram notifications enabled: {self._settings.get('enable_telegram_notifications')}")
+                    self.logger.debug("Email configuration:")
+                    self.logger.debug(f"  SMTP Server: {self._settings.get('smtp_server')}")
+                    self.logger.debug(f"  SMTP Port: {self._settings.get('smtp_port')}")
+                    self.logger.debug(f"  SMTP Username: {self._settings.get('smtp_username')}")
+                    self.logger.debug(f"  Notification Email: {self._settings.get('notification_email')}")
                     
-                    # Early return if no channels are enabled
-                    if not (self._settings.get('enable_telegram_notifications') or 
-                            self._settings.get('enable_email_notifications')):
-                        self.logger.error("No notification channels are enabled in configuration")
+                    # Check if notifications are properly enabled
+                    telegram_enabled = self._settings.get('enable_telegram_notifications', False)
+                    email_enabled = self._settings.get('enable_email_notifications', False)
+                    
+                    if not (telegram_enabled or email_enabled):
+                        self.logger.error("Both notification channels are disabled!")
+                        self.logger.error(f"Telegram enabled: {telegram_enabled}, Email enabled: {email_enabled}")
                         return None
                 else:
                     self.logger.error("No configuration found in database")
