@@ -59,7 +59,7 @@ def approve_devices():
                         WHERE mac_address = %s::macaddr
                     """, (mac_clean,)),
                     
-                    # Insert into known_devices
+                    # Insert into known_devices with proper JSONB casting
                     ("""
                         INSERT INTO known_devices (
                             mac_address, hostname, vendor, device_type, 
@@ -71,7 +71,11 @@ def approve_devices():
                             last_ip, first_seen, last_seen, 
                             %s as risk_level,
                             COALESCE(%s, notes) as notes,
-                            open_ports
+                            CASE 
+                                WHEN open_ports IS NULL THEN '[]'::jsonb
+                                WHEN open_ports::text = '' THEN '[]'::jsonb
+                                ELSE open_ports::jsonb
+                            END as open_ports
                         FROM new_devices
                         WHERE mac_address = %s::macaddr
                     """, (
