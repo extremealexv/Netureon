@@ -8,9 +8,12 @@ logger = logging.getLogger(__name__)
 
 unknown = Blueprint('unknown', __name__)
 
-@unknown.route('/unknown', methods=['GET'])
+@unknown.route('/unknown', methods=['GET', 'POST'])
 def unknown_devices():
     """Handle unknown devices page."""
+    if request.method == 'POST':
+        return handle_post_request()
+        
     try:
         # Updated query to get blocked devices from unknown_devices table
         unknown_devices = Database.execute_query("""
@@ -71,6 +74,8 @@ def handle_post_request():
         handle_delete_action(selected_devices)
     elif action == 'approve':
         handle_approve_action(selected_devices)
+    
+    return redirect(url_for('unknown.unknown_devices'))
 
 def handle_update_action(selected_devices):
     threat_level = request.form.get('threat_level', 'medium')
@@ -107,9 +112,9 @@ def handle_delete_action(selected_devices):
                     WHERE device_mac::macaddr = %(mac)s::macaddr
                 """, {'mac': mac_clean}),
                 
-                # Then delete the device
+                # Then delete the device from unknown_devices
                 ("""
-                    DELETE FROM new_devices 
+                    DELETE FROM unknown_devices 
                     WHERE mac_address = %(mac)s::macaddr
                     RETURNING 1
                 """, {'mac': mac_clean})
