@@ -1,12 +1,12 @@
-# 📘 NetGuard Technical Documentation
+# 📘 Netureon Technical Documentation
 **Version:** 1.3.1  
-**Last Updated:** September 4, 2025  
+**Last Updated:** September 23, 2025  
 **Author:** Alexander Vasilyev
 
 ---
 
 ## 🎯 Overview
-NetGuard is a comprehensive local network monitoring and security management system built with Python, Flask, and PostgreSQL. This document provides detailed technical information about the system's architecture, components, and configuration options.
+Netureon is a comprehensive local network monitoring and security management system built with Python, Flask, and PostgreSQL. This document provides detailed technical information about the system's architecture, components, and configuration options.
 
 ---
 
@@ -17,13 +17,13 @@ NetGuard is a comprehensive local network monitoring and security management sys
    - Real-time network scanning
    - Device discovery and tracking
    - Connection logging
-   - Service: `netguard.service` (Linux) / `NetGuard` (Windows)
+   - Service: `netureon.service` (Linux) / `Netureon` (Windows)
 
 2. **Alert Daemon Service**
    - Security event monitoring
    - Email notifications
    - Threat assessment
-   - Service: `netguard-alerts.service` (Linux) / `NetGuardAlerts` (Windows)
+   - Service: `netureon-alerts.service` (Linux) / `NetureonAlerts` (Windows)
 
 3. **Web Interface**
    - Real-time dashboard
@@ -73,8 +73,8 @@ graph LR
 
 2. **Application Installation**
    ```bash
-   git clone https://github.com/extremealexv/NetGuard.git
-   cd NetGuard
+   git clone https://github.com/extremealexv/Netureon.git
+   cd Netureon
    
    # Linux
    chmod +x setup.sh
@@ -88,7 +88,7 @@ graph LR
    The `.env` file supports the following settings:
    ```ini
    # Database Configuration
-   DB_NAME=netguard
+   DB_NAME=netureon
    DB_USER=postgres
    DB_PASSWORD=your_password
    DB_HOST=localhost
@@ -99,7 +99,7 @@ graph LR
    SMTP_PORT=587
    SMTP_USER=alerts@example.com
    SMTP_PASSWORD=your_smtp_password
-   EMAIL_FROM=netguard@example.com
+   EMAIL_FROM=netureon@example.com
    EMAIL_TO=admin@example.com
 
    # Flask Configuration
@@ -222,7 +222,7 @@ POST /api/alerts/rules - Configure alert rules
 ### Backup Procedures
 1. Database Backup:
    ```bash
-   pg_dump netguard > backup.sql
+   pg_dump netureon > backup.sql
    ```
 
 2. Configuration Backup:
@@ -231,7 +231,7 @@ POST /api/alerts/rules - Configure alert rules
    ```
 
 ### Log Management
-- Location: `/var/log/netguard/` (Linux)
+- Location: `/var/log/netureon/` (Linux)
 - Rotation: Daily with 30-day retention
 - Format: JSON for easy parsing
 
@@ -304,13 +304,13 @@ ALTER TABLE devices ADD COLUMN category VARCHAR(50);
 ### Diagnostic Tools
 ```bash
 # Check service status
-sudo systemctl status netguard
+sudo systemctl status netureon
 
 # View logs
-tail -f /var/log/netguard/netguard.log
+tail -f /var/log/netureon/netureon.log
 
 # Test database connection
-psql -U postgres -d netguard -c "SELECT version();"
+psql -U postgres -d netureon -c "SELECT version();"
 ```
 
 ---
@@ -325,7 +325,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development standards
 
 ### Support Channels
 - GitHub Issues
-- Email: support@netguard.local
+- Email: support@netureon.local
 - Documentation Wiki
 
 ---
@@ -393,22 +393,22 @@ Made with 🛡️ by Alexander Vasilyev
 ## 🧪 Production Deployment
 
 ### Systemd Services
-| Service/Timer           | Restart Policy | Dependencies | Description                    |
-|------------------------|----------------|--------------|--------------------------------|
-| `netguard_web.service` | `on-failure`   | PostgreSQL   | Flask web interface           |
-| `netguard_scan.timer`  | N/A            | None         | 30-second scan scheduler      |
-| `netureon-alerts.service` | `always`       | PostgreSQL   | Alert notification service    |
+| Service/Timer             | Restart Policy | Dependencies | Description                    |
+|--------------------------|----------------|--------------|--------------------------------|
+| `netureon_web.service`   | `on-failure`   | PostgreSQL   | Flask web interface           |
+| `netureon_scan.timer`    | N/A            | None         | 30-second scan scheduler      |
+| `netureon-alerts.service`| `always`       | PostgreSQL   | Alert notification service    |
 
 ### Service Configuration
 ```ini
 [Unit]
-Description=NetGuard Web Interface
+Description=Netureon Web Interface
 After=network.target postgresql.service
 
 [Service]
-User=netguard
-WorkingDirectory=/opt/netguard
-ExecStart=/opt/netguard/venv/bin/python webui/app.py
+User=netureon
+WorkingDirectory=/opt/netureon
+ExecStart=/opt/netureon/venv/bin/python webui/app.py
 Restart=on-failure
 
 [Install]
@@ -422,7 +422,7 @@ WantedBy=multi-user.target
 ### Environment Variables (`.env`)
 ```ini
 # Database Configuration
-DB_NAME=netguard
+DB_NAME=netureon
 DB_USER=postgres
 DB_PASSWORD=your_secure_password
 DB_HOST=localhost
@@ -456,10 +456,10 @@ FLASK_PORT=5000
 ## 📊 Monitoring & Maintenance
 
 ### Log Files
-- Application logs: `/var/log/netguard/app.log`
-- Scanner logs: `/var/log/netguard/scanner.log`
-- Alert logs: `/var/log/netguard/alerts.log`
-- Web interface logs: `/var/log/netguard/web.log`
+- Application logs: `/var/log/netureon/app.log`
+- Scanner logs: `/var/log/netureon/scanner.log`
+- Alert logs: `/var/log/netureon/alerts.log`
+- Web interface logs: `/var/log/netureon/web.log`
 
 ### Utility Scripts
 1. **Backup Script** (`backup.sh`/`backup.ps1`)
@@ -509,7 +509,7 @@ FLASK_PORT=5000
 2. Manual Backup Commands:
    ```bash
    # Database backup
-   pg_dump netguard > /backup/netguard_$(date +%Y%m%d).sql
+   pg_dump netureon > /backup/netureon_$(date +%Y%m%d).sql
    
    # Configuration backup
    cp .env /backup/env_$(date +%Y%m%d)
@@ -524,7 +524,7 @@ FLASK_PORT=5000
 .\health_check.ps1
 
 # Manual checks
-systemctl status netguard_web
+systemctl status netureon_web
 systemctl status alert_daemon
-systemctl status netguard_scan.timer
+systemctl status netureon_scan.timer
 ```  

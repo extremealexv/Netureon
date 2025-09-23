@@ -1,6 +1,15 @@
 # 🛡️ Netureon v1.3.1
 
-Netureon is a comprehensive network monitoring and security solution designed to help system administrators maintain visibility and control over their local networks. Built with Python, Flask, and PostgreSQL, it provides real-time device detection, automated profiling, and security alerts.
+Netureon is a comprehensive network monitoring and security solution designed to help system administrators maintain visibility and control over their local networks. Built with Python, F## 🆘 Support
+For support, please:
+1. Check the [documentation](Netureon.md)
+2. Search for existing issues
+3. Open a new issue if needed
+
+## 🧹 Maintenance
+
+### Uninstalling
+To remove Netureon and all its components:PostgreSQL, it provides real-time device detection, automated profiling, and security alerts.
 
 ## ✨ Key Features
 
@@ -89,36 +98,36 @@ For detailed documentation about project architecture, configuration options, an
 ### Linux Installation
 ```bash
 # Clone the repository
-git clone https://github.com/extremealexv/NetGuard.git
-cd NetGuard
+git clone https://github.com/extremealexv/Netureon.git
+cd Netureon
 
 # Run the setup script
 chmod +x setup.sh
 ./setup.sh
 
 # Start the services
-sudo systemctl start netguard_web
-sudo systemctl start alert_daemon
-sudo systemctl start netguard_scan.timer
+sudo systemctl start netureon_web
+sudo systemctl start netureon-alerts
+sudo systemctl start netureon_scan.timer
 ```
 
 ### Windows Installation
 ```powershell
 # Clone the repository
-git clone https://github.com/extremealexv/NetGuard.git
-cd NetGuard
+git clone https://github.com/extremealexv/Netureon.git
+cd Netureon
 
 # Run the setup script
 .\setup.ps1
 
 # Start the services
-Start-Service NetGuard
-Start-Service NetGuardAlerts
+Start-Service Netureon
+Start-Service NetureonAlerts
 ```
 
 ## 🤖 Setting Up Telegram Notifications
 
-To enable Telegram notifications, you'll need to create a Telegram bot and configure it in NetGuard:
+To enable Telegram notifications, you'll need to create a Telegram bot and configure it in Netureon:
 
 1. Start a chat with [@BotFather](https://t.me/BotFather) on Telegram
 2. Create a new bot:
@@ -144,21 +153,21 @@ To enable Telegram notifications, you'll need to create a Telegram bot and confi
 9. Restart the alert daemon:
    ```bash
    # Linux
-   sudo systemctl restart alert_daemon
+   sudo systemctl restart netureon-alerts
    
    # Windows
-   Restart-Service NetGuardAlerts
+   Restart-Service NetureonAlerts
    ```
 
 Test the setup by sending a test notification:
 ```python
-# In the NetGuard directory
-python -c "from webui.utils.telegram_notifier import send_telegram_message; send_telegram_message('🛡️ NetGuard test notification')"
+# In the Netureon directory
+python -c "from webui.utils.telegram_notifier import send_telegram_message; send_telegram_message('🛡️ Netureon test notification')"
 ```
 
 ## 🛠️ Project Structure
 ```
-NetGuard/
+Netureon/
 ├── webui/                 # Web interface components
 │   ├── app.py            # Flask application
 │   ├── models/           # Database models

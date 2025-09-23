@@ -1,4 +1,4 @@
-# NetGuard v1.3.1 Release Notes
+# Netureon v1.3.1 Release Notes
 
 ## 🚀 New Features
 
@@ -22,6 +22,9 @@
 - Enhanced configuration controls
 - Added real-time status updates
 - Improved error handling and user feedback
+- **NEW**: Consistent UI design across all pages
+- **NEW**: Activity indicators showing device status (active/inactive)
+- **NEW**: Enhanced device cards with visual status indicators
 
 ## 🔧 Technical Improvements
 
@@ -31,6 +34,8 @@
 - Added comprehensive type hints
 - Improved code documentation
 - Added configuration validation
+- **NEW**: Fixed database column mismatches and schema consistency
+- **NEW**: Unified alert notification system
 
 ### Performance & Reliability
 - Optimized network scanning process
@@ -38,6 +43,8 @@
 - Enhanced service management
 - Added proper error recovery
 - Improved systemd integration
+- **NEW**: Eliminated duplicate notifications
+- **NEW**: Better JSON API support for web interface actions
 
 ## 🐛 Bug Fixes
 - Fixed scanning interval configuration issues
@@ -45,9 +52,23 @@
 - Enhanced error handling in network scanning
 - Fixed configuration persistence issues
 - Improved database connection reliability
+- **NEW**: Fixed device card styling and status badge issues
+- **NEW**: Resolved unknown device processing errors
+- **NEW**: Fixed database column name inconsistencies
+- **NEW**: Corrected duplicate notification issues
+
+## 🎨 UI/UX Improvements
+- **NEW**: Consistent page layouts across Known Devices, Review, and Unknown pages
+- **NEW**: Activity status indicators with green (active) and gray (inactive) badges
+- **NEW**: Clean white device cards with colored status elements only
+- **NEW**: Responsive design that works on mobile devices
+- **NEW**: Unified CSS framework for consistent styling
 
 ## 📝 Notes
 - Requires Python 3.8 or higher
+- **Updated**: All NetGuard references changed to Netureon
+- **Updated**: Service names updated to netureon-* convention
+- **Updated**: Database name changed from netguard to netureon
 - PostgreSQL 13 or higher recommended
 - Database schema updated for better device tracking
 - Added support for both Windows and Linux installations
