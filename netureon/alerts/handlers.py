@@ -107,10 +107,10 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                 with conn.cursor() as cursor:
                     cursor.execute("""
                         INSERT INTO alerts 
-                        (device_mac, alert_type, created_at, details, severity)
-                        VALUES (%s::macaddr, 'new_device', NOW(), %s, 'medium')
+                        (device_mac, alert_type)
+                        VALUES (%s::macaddr, 'new_device')
                         RETURNING id
-                    """, (mac, details))
+                    """, (mac,))
                     
                     alert_id = cursor.fetchone()[0]
                     conn.commit()
