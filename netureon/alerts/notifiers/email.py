@@ -8,7 +8,7 @@ class EmailNotifier(BaseNotifier):
 
     def is_configured(self):
         """Check if email notifications are properly configured."""
-        if self.settings.get('enable_email_notifications') != 'true':
+        if not self.settings.get('enable_email_notifications'):
             self.logger.info("Email notifications are disabled")
             return False
 

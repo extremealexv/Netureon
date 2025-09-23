@@ -103,11 +103,8 @@ class AlertDaemon:
             email_sent = self.email_notifier.send_notification(subject, body)
             telegram_sent = self.telegram_notifier.send_notification(body)
             
-            self.device_handler.update_alert_status(
-                alert_id, 
-                email_sent, 
-                telegram_sent
-            )
+            # Log notification results
+            logger.info(f"Notifications sent for alert {alert_id} - Email: {'✓' if email_sent else '✗'}, Telegram: {'✓' if telegram_sent else '✗'}")
             
         except Exception as e:
             logger.error(f"Error sending notifications: {str(e)}")
