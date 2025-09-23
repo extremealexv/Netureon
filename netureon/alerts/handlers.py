@@ -107,7 +107,7 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                 with conn.cursor() as cursor:
                     cursor.execute("""
                         INSERT INTO alerts 
-                        (device_mac, alert_type, detected_at, details, severity)
+                        (device_mac, alert_type, created_at, details, severity)
                         VALUES (%s::macaddr, 'new_device', NOW(), %s, 'medium')
                         RETURNING id
                     """, (mac, details))
@@ -130,7 +130,7 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                         SELECT 
                             device_mac,
                             alert_type,
-                            detected_at,
+                            created_at,
                             details,
                             severity
                         FROM alerts 
