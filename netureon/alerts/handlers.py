@@ -82,7 +82,7 @@ Vendor: {profile.get('vendor', 'Unknown')}
 Type: {profile.get('device_type', 'Unknown')}
 Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('open_ports', []))}"""
 
-                alert_id = self.create_alert(mac, ip, details, timestamp)
+                alert_id = self.create_alert(mac, ip, timestamp)
                 
                 # Send notifications immediately
                 if alert_id:
@@ -100,7 +100,7 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
             self.logger.error(f"Error profiling device {mac}: {e}")
             return None
 
-    def create_alert(self, mac, ip, details, timestamp):
+    def create_alert(self, mac, ip, timestamp):
         """Create an alert for the detected device."""
         try:
             with psycopg2.connect(**self.db_config) as conn:
@@ -130,9 +130,7 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                         SELECT 
                             device_mac,
                             alert_type,
-                            created_at,
-                            details,
-                            severity
+                            created_at
                         FROM alerts 
                         WHERE id = %s
                     """, (alert_id,))
@@ -143,9 +141,7 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                             'id': alert_id,
                             'device_mac': row[0],
                             'type': row[1],
-                            'timestamp': row[2],
-                            'details': row[3],
-                            'severity': row[4]
+                            'timestamp': row[2]
                         }
                     return None
                     
