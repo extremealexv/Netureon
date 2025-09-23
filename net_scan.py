@@ -144,14 +144,23 @@ class NetworkScanner:
                     """, (mac,))
                     in_review = cur.fetchone()[0]
 
-                    if not in_review:
-                        # Only add to new_devices if truly new
+                    # Also check if it's already in unknown_devices (blocked)
+                    cur.execute("""
+                        SELECT EXISTS (
+                            SELECT 1 FROM unknown_devices 
+                            WHERE mac_address = %s::macaddr
+                        )
+                    """, (mac,))
+                    is_blocked = cur.fetchone()[0]
+
+                    if not in_review and not is_blocked:
+                        # Only add to new_devices if truly new and not blocked
                         cur.execute("""
                             INSERT INTO new_devices (mac_address, last_ip, last_seen)
                             VALUES (%s::macaddr, %s::inet, NOW())
                         """, (mac, ip))
                         self.logger.info(f"New device detected: MAC={mac}, IP={ip}")
-                    else:
+                    elif in_review:
                         # Just update last seen for existing review devices
                         cur.execute("""
                             UPDATE new_devices 
@@ -159,6 +168,15 @@ class NetworkScanner:
                                 last_seen = NOW()
                             WHERE mac_address = %s::macaddr
                         """, (ip, mac))
+                    elif is_blocked:
+                        # Update blocked device activity in unknown_devices
+                        cur.execute("""
+                            UPDATE unknown_devices 
+                            SET last_ip = %s::inet,
+                                last_seen = NOW()
+                            WHERE mac_address = %s::macaddr
+                        """, (ip, mac))
+                        self.logger.debug(f"Updated blocked device activity: MAC={mac}, IP={ip}")
 
                 # Update known devices activity
                 cur.execute("""
