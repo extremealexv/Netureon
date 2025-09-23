@@ -317,18 +317,15 @@ h1, h2 {
     border: 1px solid #f5c6cb;
 }
 
-/* Device Card Threat Status Colors */
+/* Device Card Threat Status Colors - Keep background white */
 .device-card.status-low {
     border-left: 4px solid #17a2b8;
-    background-color: #f8fdff;
 }
 
 .device-card.status-medium {
     border-left: 4px solid #ffc107;
-    background-color: #fffbf0;
 }
 
 .device-card.status-high {
     border-left: 4px solid #dc3545;
-    background-color: #fff5f5;
 }
