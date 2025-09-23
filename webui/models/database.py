@@ -30,8 +30,8 @@ class Database:
 
     @classmethod
     def execute_query(cls, query, params=None):
-        cls.logger.debug(f"Executing query: {query}")
-        cls.logger.debug(f"Parameters: {params}")
+        logger.debug(f"Executing query: {query}")
+        logger.debug(f"Parameters: {params}")
         """Execute a SQL query and return results."""
         try:
             with cls.get_connection() as conn:
@@ -42,9 +42,9 @@ class Database:
                     except psycopg2.ProgrammingError:
                         return None
         except Exception as e:
-            cls.logger.error(f"Query execution failed: {str(e)}")
-            cls.logger.error(f"Query: {query}")
-            cls.logger.error(f"Params: {params}")
+            logger.error(f"Query execution failed: {str(e)}")
+            logger.error(f"Query: {query}")
+            logger.error(f"Params: {params}")
             raise
 
     @staticmethod
