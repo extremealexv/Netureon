@@ -12,32 +12,34 @@ unknown = Blueprint('unknown', __name__)
 def unknown_devices():
     """Handle unknown devices page."""
     try:
-        # Updated query to use correct column names and add better threat assessment
+        # Updated query to get blocked devices from unknown_devices table
         unknown_devices = Database.execute_query("""
             SELECT 
-                n.mac_address as mac,
-                n.hostname,
-                n.last_ip,
-                n.first_seen,
-                n.last_seen,
+                u.mac_address as mac,
+                u.hostname,
+                u.last_ip,
+                u.first_seen,
+                u.last_seen,
                 COALESCE(COUNT(DISTINCT a.id), 0) as alert_count,
                 CASE 
                     WHEN COUNT(DISTINCT a.id) > 10 THEN 'high'
                     WHEN COUNT(DISTINCT a.id) > 5 THEN 'medium'
                     ELSE 'low'
                 END as threat_level,
-                n.notes,
-                STRING_AGG(DISTINCT a.alert_type, ', ') as alert_types
-            FROM new_devices n
-            LEFT JOIN alerts a ON a.device_mac = n.mac_address
+                u.notes,
+                STRING_AGG(DISTINCT a.alert_type, ', ') as alert_types,
+                u.status
+            FROM unknown_devices u
+            LEFT JOIN alerts a ON a.device_mac = u.mac_address
             GROUP BY 
-                n.mac_address, 
-                n.hostname, 
-                n.last_ip, 
-                n.first_seen, 
-                n.last_seen, 
-                n.notes
-            ORDER BY n.last_seen DESC
+                u.mac_address, 
+                u.hostname, 
+                u.last_ip, 
+                u.first_seen, 
+                u.last_seen, 
+                u.notes,
+                u.status
+            ORDER BY u.last_seen DESC
         """)
 
         if unknown_devices:
