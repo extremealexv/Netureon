@@ -35,7 +35,11 @@ def main_page():
             EXISTS(
                 SELECT 1 FROM alerts a 
                 WHERE a.device_mac = k.mac_address
-            ) as has_alerts
+            ) as has_alerts,
+            CASE 
+                WHEN k.last_seen > NOW() - INTERVAL '10 minutes' THEN 'active'
+                ELSE 'inactive'
+            END as activity_status
         FROM known_devices k
         ORDER BY k.last_seen DESC
     """)

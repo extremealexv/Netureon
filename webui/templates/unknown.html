@@ -1,155 +1,112 @@
 {% extends 'main.html' %}
 
 {% block content %}
-<div class="notifications position-fixed top-0 end-0 p-3" style="z-index: 1050"></div>
 <div class="container">
-    <h2>⚠️ Unknown Devices</h2>
-    <form method="post" action="{{ url_for('unknown.unknown_devices') }}">
-        <div class="device-grid">
-            {% for device in devices %}
-            <div class="device-card threat-{{ device.threat_level }}">
-                <input type="checkbox" name="selected_devices" value="{{ device.mac }}">
-                <div class="device-info">
-                    <h3>{{ device.hostname or 'Unknown Device' }}</h3>
-                    <div class="threat-badge {{ device.threat_level }}">
-                        {{ device.threat_level.upper() }}
-                    </div>
-                    <p>MAC: {{ device.mac }}</p>
-                    <p>Last IP: {{ device.last_ip }}</p>
-                    <p>First Seen: {{ device.first_seen }}</p>
-                    <p>Last Seen: {{ device.last_seen }}</p>
-                    <p>Times Detected: {{ device.detection_count }}</p>
-                    <p class="notes">Notes: {{ device.notes }}</p>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        <div class="action-buttons">
-            <button type="submit" name="action" value="approve" class="btn btn-success">
-                ✅ Move to Known Devices
+    <div class="page-header">
+        <h1><i class="fas fa-exclamation-triangle"></i> Unknown Devices</h1>
+        <div class="page-actions">
+            <button type="button" class="btn btn-success" onclick="processSelected('approve')">
+                <i class="fas fa-check"></i> Move to Known
             </button>
-            <button type="submit" name="action" value="update" class="btn btn-warning">
-                📝 Update Threat Level
+            <button type="button" class="btn btn-warning" onclick="processSelected('update')">
+                <i class="fas fa-edit"></i> Update Threat Level
             </button>
-            <button type="submit" name="action" value="delete" class="btn btn-danger">
-                🗑️ Remove from List
+            <button type="button" class="btn btn-danger" onclick="processSelected('delete')">
+                <i class="fas fa-trash"></i> Remove
             </button>
-            <select name="threat_level" class="form-select">
+            <select id="threatLevel" class="form-select">
                 <option value="low">Low Risk</option>
                 <option value="medium" selected>Medium Risk</option>
                 <option value="high">High Risk</option>
             </select>
-            <input type="text" name="notes" placeholder="Update notes" class="form-control">
+            <input type="text" id="notes" class="form-control" placeholder="Update notes">
         </div>
-    </form>
+    </div>
+
+    <div class="device-grid">
+        {% for device in devices %}
+        <div class="device-card has-checkbox status-{{ device.threat_level }}">
+            <input class="device-checkbox" type="checkbox" value="{{ device.mac }}" id="device-{{ loop.index }}">
+            
+            <h3>{{ device.hostname or 'Unknown Device' }}</h3>
+            
+            <div class="threat-badge threat-{{ device.threat_level }}">
+                {{ device.threat_level.upper() }} THREAT
+            </div>
+            
+            <p><strong>MAC:</strong> {{ device.mac }}</p>
+            <p><strong>Last IP:</strong> {{ device.last_ip }}</p>
+            <p><strong>First Seen:</strong> {{ device.first_seen }}</p>
+            <p><strong>Last Seen:</strong> {{ device.last_seen }}</p>
+            <p><strong>Detection Count:</strong> {{ device.detection_count }}</p>
+            
+            {% if device.notes %}
+                <p><strong>Notes:</strong> {{ device.notes }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
 </div>
 
-<style>
-.device-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1rem;
-    margin-bottom: 2rem;
+<script>
+function processSelected(action) {
+    const selected = Array.from(document.querySelectorAll('.device-checkbox:checked')).map(cb => cb.value);
+    
+    if (selected.length === 0) {
+        showAlert('Please select at least one device', 'warning');
+        return;
+    }
+    
+    const data = {
+        selected_devices: selected,
+        action: action,
+        threat_level: document.getElementById('threatLevel').value,
+        notes: document.getElementById('notes').value
+    };
+    
+    fetch('/unknown', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let message = data.message || 'Action completed successfully';
+            showAlert(message, 'success');
+            
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            showAlert(data.error || 'Action failed', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Failed to process devices. Please check the logs.', 'error');
+    });
 }
 
-.device-card {
-    border: 1px solid #ddd;
-    padding: 1rem;
-    border-radius: 8px;
-    display: flex;
-    align-items: flex-start;
+function showAlert(message, type = 'info') {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.role = 'alert';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    document.querySelector('.container').insertBefore(
+        alertDiv,
+        document.querySelector('.container').firstChild
+    );
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
 }
-
-.threat-high {
-    border-left: 5px solid #dc3545;
-    background-color: #fff5f5;
-}
-
-.threat-medium {
-    border-left: 5px solid #ffc107;
-    background-color: #fffbeb;
-}
-
-.threat-low {
-    border-left: 5px solid #0dcaf0;
-    background-color: #f0f9ff;
-}
-
-.device-info {
-    margin-left: 1rem;
-    flex-grow: 1;
-}
-
-.threat-badge {
-    display: inline-block;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-}
-
-.threat-badge.high {
-    background-color: #dc3545;
-    color: white;
-}
-
-.threat-badge.medium {
-    background-color: #ffc107;
-    color: black;
-}
-
-.threat-badge.low {
-    background-color: #0dcaf0;
-    color: white;
-}
-
-.notes {
-    margin-top: 0.5rem;
-    padding: 0.5rem;
-    background-color: #f8f9fa;
-    border-radius: 4px;
-}
-
-.action-buttons {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    margin-top: 2rem;
-    flex-wrap: wrap;
-}
-
-.btn {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.btn-success {
-    background-color: #198754;
-    color: white;
-}
-
-.btn-warning {
-    background-color: #ffc107;
-    color: black;
-}
-
-.btn-danger {
-    background-color: #dc3545;
-    color: white;
-}
-
-.form-select, .form-control {
-    max-width: 200px;
-    padding: 0.5rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
-</style>
-{% endblock %}
-
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/unknown.js') }}"></script>
+</script>
 {% endblock %}
