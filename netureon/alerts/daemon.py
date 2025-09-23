@@ -97,14 +97,9 @@ class AlertDaemon:
             if not alert:
                 return
                 
-            subject = f"NetGuard Alert: {alert['type']}"
-            body = f"New device detected: {alert['device_mac']} at {alert['timestamp']}"
-            
-            email_sent = self.email_notifier.send_notification(subject, body)
-            telegram_sent = self.telegram_notifier.send_notification(body)
-            
-            # Log notification results
-            logger.info(f"Notifications sent for alert {alert_id} - Email: {'✓' if email_sent else '✗'}, Telegram: {'✓' if telegram_sent else '✗'}")
+            # Notifications are already sent by the handlers immediately when alerts are created
+            # No need to send duplicate notifications here
+            logger.debug(f"Alert {alert_id} already processed by handlers")
             
         except Exception as e:
-            logger.error(f"Error sending notifications: {str(e)}")
+            logger.error(f"Error processing alert: {str(e)}")
