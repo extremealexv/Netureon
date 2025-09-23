@@ -34,7 +34,7 @@ def main_page():
             k.open_ports,
             EXISTS(
                 SELECT 1 FROM alerts a 
-                WHERE a.device_id = k.mac_address 
+                WHERE a.device_mac = k.mac_address 
                 AND COALESCE(a.status, 'new') = 'new'
             ) as has_alerts
         FROM known_devices k
@@ -105,7 +105,7 @@ def handle_delete_action(selected_devices):
                 # Remove any existing alerts
                 ("""
                     DELETE FROM alerts 
-                    WHERE device_id = %s::macaddr
+                    WHERE device_mac = %s::macaddr
                 """, (mac_clean,)),
                 # Remove from discovery_log
                 ("""
