@@ -14,31 +14,31 @@ def unknown_devices():
     try:
         unknown_devices = Database.execute_query("""
             SELECT 
-                mac_address as mac,
-                hostname,
-                last_ip,
-                first_seen,
-                last_seen,
-                COALESCE(
-                    (SELECT COUNT(*) 
-                     FROM alerts 
-                     WHERE device_mac = mac_address), 
-                    0
-                ) as detection_count,
+                n.mac_address as mac,
+                n.hostname,
+                n.last_ip,
+                n.first_seen,
+                n.last_seen,
+                COALESCE(COUNT(a.id), 0) as detection_count,
                 'medium' as threat_level,
-                notes
-            FROM new_devices
-            ORDER BY last_seen DESC
+                n.notes
+            FROM new_devices n
+            LEFT JOIN alerts a ON a.device_mac = n.mac_address
+            GROUP BY n.mac_address, n.hostname, n.last_ip, n.first_seen, n.last_seen, n.notes
+            ORDER BY n.last_seen DESC
         """)
 
         if unknown_devices:
             devices = DeviceManager.format_device_list(unknown_devices)
+            logger.debug(f"Found {len(devices)} unknown devices")
             return render_template('unknown.html', devices=devices)
         else:
+            logger.debug("No unknown devices found")
             return render_template('unknown.html', devices=[])
 
     except Exception as e:
         logger.error(f"Error loading unknown devices: {str(e)}")
+        logger.exception("Full traceback:")
         flash(f'Error loading devices: {str(e)}', 'error')
         return render_template('unknown.html', devices=[])
 
