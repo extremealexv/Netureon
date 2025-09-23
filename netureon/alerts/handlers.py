@@ -149,27 +149,6 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
             logger.error(f"Error getting alert {alert_id}: {str(e)}")
             return None
 
-    def update_alert_status(self, alert_id, email_sent, telegram_sent):
-        """Update alert status after sending notifications."""
-        try:
-            with psycopg2.connect(**self.db_config) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        UPDATE alerts 
-                        SET is_resolved = true,
-                            resolved_at = NOW(),
-                            resolution_notes = %s
-                        WHERE id = %s
-                    """, (
-                        f"Notifications sent - Email: {'✓' if email_sent else '✗'}, "
-                        f"Telegram: {'✓' if telegram_sent else '✗'}",
-                        alert_id
-                    ))
-                    conn.commit()
-                    
-        except Exception as e:
-            logger.error(f"Error updating alert {alert_id}: {str(e)}")
-
     def send_notifications(self, alert_id, subject, message):
         """Send notifications for an alert."""
         try:
@@ -193,7 +172,8 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                 self.logger.info(f"Telegram notification {'sent' if telegram_sent else 'failed'}")
 
             # Update alert status
-            self.update_alert_status(alert_id, email_sent, telegram_sent)
+            # Note: Skipping alert status update since the table doesn't have resolution columns
+            self.logger.info(f"Notifications sent for alert {alert_id} - Email: {'✓' if email_sent else '✗'}, Telegram: {'✓' if telegram_sent else '✗'}")
                 
         except Exception as e:
             self.logger.error(f"Error sending notifications: {str(e)}")

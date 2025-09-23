@@ -98,7 +98,7 @@ class AlertDaemon:
                 return
                 
             subject = f"NetGuard Alert: {alert['type']}"
-            body = alert['details']
+            body = f"New device detected: {alert['device_mac']} at {alert['timestamp']}"
             
             email_sent = self.email_notifier.send_notification(subject, body)
             telegram_sent = self.telegram_notifier.send_notification(body)
