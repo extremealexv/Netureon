@@ -34,8 +34,7 @@ def main_page():
             k.open_ports,
             EXISTS(
                 SELECT 1 FROM alerts a 
-                WHERE a.device_mac = k.mac_address 
-                AND COALESCE(a.status, 'new') = 'new'
+                WHERE a.device_mac = k.mac_address
             ) as has_alerts
         FROM known_devices k
         ORDER BY k.last_seen DESC
