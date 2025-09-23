@@ -24,11 +24,7 @@ def unknown_devices():
                 u.first_seen,
                 u.last_seen,
                 COALESCE(COUNT(DISTINCT a.id), 0) as alert_count,
-                CASE 
-                    WHEN COUNT(DISTINCT a.id) > 10 THEN 'high'
-                    WHEN COUNT(DISTINCT a.id) > 5 THEN 'medium'
-                    ELSE 'low'
-                END as threat_level,
+                COALESCE(u.threat_level, 'medium') as threat_level,
                 u.notes,
                 STRING_AGG(DISTINCT a.alert_type, ', ') as alert_types,
                 u.status
@@ -41,7 +37,8 @@ def unknown_devices():
                 u.first_seen, 
                 u.last_seen, 
                 u.notes,
-                u.status
+                u.status,
+                u.threat_level
             ORDER BY u.last_seen DESC
         """)
 

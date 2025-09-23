@@ -156,7 +156,7 @@ def block_devices():
                         INSERT INTO unknown_devices (
                             mac_address, hostname, vendor, device_type,
                             last_ip, first_seen, last_seen,
-                            notes, status, open_ports
+                            notes, status, open_ports, threat_level
                         )
                         SELECT 
                             mac_address, hostname, vendor, device_type,
@@ -167,15 +167,17 @@ def block_devices():
                                 WHEN open_ports IS NULL THEN '[]'::jsonb
                                 WHEN open_ports::text = '' THEN '[]'::jsonb
                                 ELSE open_ports::jsonb
-                            END as open_ports
+                            END as open_ports,
+                            %s::text as threat_level
                         FROM new_devices
                         WHERE mac_address = %s::macaddr
                         ON CONFLICT (mac_address) DO UPDATE
                         SET last_ip = EXCLUDED.last_ip,
                             last_seen = EXCLUDED.last_seen,
                             notes = COALESCE(EXCLUDED.notes, unknown_devices.notes),
-                            status = 'blocked'::text
-                    """, (data.get('notes'), mac_clean)),
+                            status = 'blocked'::text,
+                            threat_level = EXCLUDED.threat_level
+                    """, (data.get('notes'), data.get('risk_level', 'medium'), mac_clean)),
                     
                     # Remove from new_devices
                     ("""
