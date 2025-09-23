@@ -18,9 +18,10 @@ class DeviceManager:
                     'last_ip': device['last_ip'],
                     'first_seen': DeviceManager._format_datetime(device['first_seen']),
                     'last_seen': DeviceManager._format_datetime(device['last_seen']),
-                    'detection_count': device['detection_count'],
-                    'threat_level': device.get('threat_level', 'medium'),
-                    'notes': device.get('notes', '')
+                    'alert_count': device['alert_count'],
+                    'threat_level': device.get('threat_level', 'low'),
+                    'notes': device.get('notes', ''),
+                    'alert_types': device.get('alert_types', '')
                 }
                 formatted_devices.append(formatted_device)
             return formatted_devices
