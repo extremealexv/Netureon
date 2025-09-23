@@ -58,25 +58,53 @@ def unknown_devices():
         return render_template('unknown.html', devices=[])
 
 def handle_post_request():
-    selected_devices = request.form.getlist('selected_devices')
-    action = request.form.get('action')
+    # Check if request contains JSON data
+    if request.is_json:
+        data = request.get_json()
+        selected_devices = data.get('selected_devices', [])
+        action = data.get('action')
+        threat_level = data.get('threat_level', 'medium')
+        notes = data.get('notes', '')
+    else:
+        # Fallback to form data
+        selected_devices = request.form.getlist('selected_devices')
+        action = request.form.get('action')
+        threat_level = request.form.get('threat_level', 'medium')
+        notes = request.form.get('notes', '')
     
     if not selected_devices:
-        flash('Please select at least one device', 'warning')
-        return redirect(url_for('unknown.unknown_devices'))
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Please select at least one device'})
+        else:
+            flash('Please select at least one device', 'warning')
+            return redirect(url_for('unknown.unknown_devices'))
     
-    if action == 'update':
-        handle_update_action(selected_devices)
-    elif action == 'delete':
-        handle_delete_action(selected_devices)
-    elif action == 'approve':
-        handle_approve_action(selected_devices)
-    
-    return redirect(url_for('unknown.unknown_devices'))
+    try:
+        if action == 'update':
+            handle_update_action(selected_devices, threat_level, notes)
+        elif action == 'delete':
+            handle_delete_action(selected_devices)
+        elif action == 'approve':
+            handle_approve_action(selected_devices, notes)
+        
+        if request.is_json:
+            return jsonify({'success': True, 'message': f'Successfully processed {len(selected_devices)} devices'})
+        else:
+            return redirect(url_for('unknown.unknown_devices'))
+            
+    except Exception as e:
+        logger.error(f"Error processing request: {str(e)}")
+        if request.is_json:
+            return jsonify({'success': False, 'error': str(e)})
+        else:
+            flash(f'Error processing request: {str(e)}', 'error')
+            return redirect(url_for('unknown.unknown_devices'))
 
-def handle_update_action(selected_devices):
-    threat_level = request.form.get('threat_level', 'medium')
-    notes = request.form.get('notes', '')
+def handle_update_action(selected_devices, threat_level=None, notes=None):
+    if threat_level is None:
+        threat_level = request.form.get('threat_level', 'medium')
+    if notes is None:
+        notes = request.form.get('notes', '')
     
     updated = 0
     for mac in selected_devices:
@@ -92,10 +120,15 @@ def handle_update_action(selected_devices):
                 RETURNING 1
             """, (threat_level, notes, notes, mac))[0][0]
         except Exception as e:
-            flash(f'Error updating device {mac}: {str(e)}', 'error')
+            logger.error(f"Error updating device {mac}: {str(e)}")
+            if not request.is_json:
+                flash(f'Error updating device {mac}: {str(e)}', 'error')
     
     if updated > 0:
-        flash(f'Updated threat level for {updated} devices', 'info')
+        message = f'Updated threat level for {updated} devices'
+        logger.info(message)
+        if not request.is_json:
+            flash(message, 'info')
 
 def handle_delete_action(selected_devices):
     deleted = 0
@@ -124,16 +157,24 @@ def handle_delete_action(selected_devices):
                 
         except Exception as e:
             logger.error(f"Error deleting device {mac}: {str(e)}")
-            flash(f'Error deleting device {mac}: {str(e)}', 'error')
+            if not request.is_json:
+                flash(f'Error deleting device {mac}: {str(e)}', 'error')
             continue
     
     if deleted > 0:
-        flash(f'Successfully removed {deleted} devices and related alerts', 'success')
+        message = f'Successfully removed {deleted} devices and related alerts'
+        logger.info(message)
+        if not request.is_json:
+            flash(message, 'success')
     else:
-        flash('No devices were removed. Please check the MAC addresses.', 'warning')
+        message = 'No devices were removed. Please check the MAC addresses.'
+        logger.warning(message)
+        if not request.is_json:
+            flash(message, 'warning')
 
-def handle_approve_action(selected_devices):
-    notes = request.form.get('notes', '')
+def handle_approve_action(selected_devices, notes=None):
+    if notes is None:
+        notes = request.form.get('notes', '')
     moved = 0
     
     for mac in selected_devices:
@@ -158,11 +199,16 @@ def handle_approve_action(selected_devices):
             Database.execute_transaction(queries)
             moved += 1
         except Exception as e:
-            flash(f'Error moving device {mac}: {str(e)}', 'error')
+            logger.error(f"Error moving device {mac}: {str(e)}")
+            if not request.is_json:
+                flash(f'Error moving device {mac}: {str(e)}', 'error')
             continue
     
     if moved > 0:
-        flash(f'Moved {moved} devices to known devices', 'success')
+        message = f'Moved {moved} devices to known devices'
+        logger.info(message)
+        if not request.is_json:
+            flash(message, 'success')
 
 @unknown.route('/unknown/delete', methods=['POST'])
 def delete_device():
