@@ -831,3 +831,262 @@ h2 {
 }
 
 /* Device cards kept clean and white - all status shown via badges only */
+
+/* ==========================================================================
+   System Information Page Styles
+   ========================================================================== */
+
+.system-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: var(--space-6);
+    margin-top: var(--space-6);
+}
+
+.system-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-base);
+    overflow: hidden;
+}
+
+.system-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.system-card-wide {
+    grid-column: 1 / -1;
+}
+
+.system-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+}
+
+.system-card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: var(--primary-light);
+    color: var(--primary);
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-lg);
+}
+
+.system-card-header h3 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.system-card-content {
+    padding: var(--space-5);
+}
+
+/* Information Items */
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.info-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.info-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-medium);
+}
+
+.info-value {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    font-weight: var(--font-weight-medium);
+    text-align: right;
+}
+
+/* Special Value Styles */
+.version-badge {
+    background: var(--primary-light);
+    color: var(--primary);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--border-radius);
+    font-weight: var(--font-weight-semibold);
+}
+
+.db-version {
+    font-family: var(--font-family-mono);
+    background: var(--gray-100);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--border-radius-sm);
+}
+
+.mac-address {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    background: var(--gray-100);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--border-radius-sm);
+}
+
+/* Resource Usage Styles */
+.resource-section {
+    margin-bottom: var(--space-6);
+}
+
+.resource-section:last-child {
+    margin-bottom: 0;
+}
+
+.resource-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.resource-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.resource-title i {
+    color: var(--primary);
+}
+
+.resource-value {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+}
+
+.progress-container {
+    margin-bottom: var(--space-2);
+}
+
+.progress-bar {
+    width: 100%;
+    height: 0.75rem;
+    background-color: var(--gray-200);
+    border-radius: var(--border-radius-lg);
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: var(--border-radius-lg);
+    transition: width 0.3s ease;
+    position: relative;
+}
+
+.cpu-progress {
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+}
+
+.memory-progress {
+    background: linear-gradient(90deg, var(--success), var(--primary));
+}
+
+.disk-progress {
+    background: linear-gradient(90deg, var(--warning), var(--accent));
+}
+
+.resource-details {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+/* Network Interface Styles */
+.network-interface {
+    margin-bottom: var(--space-4);
+}
+
+.network-interface:last-child {
+    margin-bottom: 0;
+}
+
+.interface-name {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 2px solid var(--primary-light);
+}
+
+.interface-name i {
+    color: var(--primary);
+}
+
+.interface-details {
+    padding-left: var(--space-6);
+}
+
+.interface-divider {
+    height: 1px;
+    background: var(--border);
+    margin: var(--space-4) 0;
+}
+
+/* Responsive Design for System Cards */
+@media (max-width: 768px) {
+    .system-info-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-4);
+    }
+    
+    .system-card-wide {
+        grid-column: 1;
+    }
+    
+    .system-card-header {
+        padding: var(--space-4);
+    }
+    
+    .system-card-content {
+        padding: var(--space-4);
+    }
+    
+    .info-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-1);
+    }
+    
+    .info-value {
+        text-align: left;
+    }
+    
+    .resource-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-1);
+    }
+    
+    .interface-details {
+        padding-left: 0;
+    }
+}
