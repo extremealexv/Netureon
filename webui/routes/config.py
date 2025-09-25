@@ -96,9 +96,9 @@ def config():
                     flash(f'Logging level updated to {logging_level}', 'success')
                     logger.info(f"Logging level changed to {logging_level}")
                     
-                    # Try to reconfigure logging for running services
+                    # Notify services of configuration change
                     try:
-                        script_path = Path(__file__).parent.parent.parent / 'scripts' / 'reconfigure_logging.py'
+                        script_path = Path(__file__).parent.parent.parent / 'scripts' / 'update_logging_config.py'
                         if script_path.exists():
                             import subprocess
                             result = subprocess.run(
@@ -108,13 +108,18 @@ def config():
                                 timeout=10
                             )
                             if result.returncode == 0:
-                                logger.info("Successfully notified running services of logging level change")
+                                flash('Logging level updated and services notified', 'success')
+                                logger.info("Configuration update notification sent successfully")
                             else:
-                                logger.warning(f"Could not notify running services: {result.stderr}")
+                                flash('Logging level saved, notification may have failed', 'warning')
+                                logger.warning(f"Configuration notification script failed: {result.stderr}")
                         else:
-                            logger.info("Logging reconfiguration script not found, services may need restart")
+                            logger.info("Configuration notification script not found")
+                    except subprocess.TimeoutExpired:
+                        flash('Logging level saved, notification timed out', 'warning')
+                        logger.warning("Configuration notification script timed out")
                     except Exception as script_error:
-                        logger.warning(f"Could not run logging reconfiguration script: {script_error}")
+                        logger.warning(f"Could not run configuration notification script: {script_error}")
                 else:
                     flash('Failed to apply logging level changes', 'error')
             else:

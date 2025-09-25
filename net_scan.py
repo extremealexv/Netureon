@@ -55,13 +55,11 @@ class NetworkScanner:
         return self.logger
 
     def setup_signal_handlers(self):
-        """Set up signal handlers for graceful shutdown and configuration reload."""
+        """Set up signal handlers for graceful shutdown."""
         # Handle SIGTERM for graceful shutdown
         signal.signal(signal.SIGTERM, self.signal_handler)
-        
-        # Handle SIGUSR1 for logging configuration reload (Unix only)
-        if hasattr(signal, 'SIGUSR1'):
-            signal.signal(signal.SIGUSR1, self.reload_logging_config)
+        # Handle SIGINT (Ctrl+C) for graceful shutdown
+        signal.signal(signal.SIGINT, self.signal_handler)
         
         self.logger.debug("Signal handlers configured")
 
@@ -69,23 +67,6 @@ class NetworkScanner:
         """Handle shutdown signals."""
         self.logger.info(f"Received signal {signum}, shutting down gracefully...")
         self.running = False
-
-    def reload_logging_config(self, signum, frame):
-        """Reload logging configuration from database."""
-        try:
-            self.logger.info("Reloading logging configuration...")
-            old_level = self.logger.level
-            
-            # Reconfigure logger with new database settings
-            log_dir = os.path.expanduser('~/Netureon/logs')
-            log_file = os.path.join(log_dir, 'netureon.log')
-            self.logger = configure_logger('netureon', log_file)
-            
-            new_level = self.logger.level
-            self.logger.info(f"Logging configuration reloaded: {logging.getLevelName(old_level)} -> {logging.getLevelName(new_level)}")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to reload logging configuration: {e}")
 
     def connect_db(self):
         """Establish database connection"""
