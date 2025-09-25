@@ -50,22 +50,77 @@
     </header>
     {% endblock %}
 
-    <!-- Main Content -->
-    <div class="container">
-        <!-- Alert Messages -->
+    <!-- Alert Container (Toast Notifications) -->
+    <div class="alert-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ 'error' if category == 'error' else category }}">
-                        <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'info-circle' }}"></i>
-                        {{ message }}
+                    <div class="alert alert-{{ 'error' if category == 'error' else category }}" data-auto-dismiss="5000">
+                        <div class="alert-icon">
+                            {% if category == 'success' %}
+                                <i class="fas fa-check-circle"></i>
+                            {% elif category == 'error' %}
+                                <i class="fas fa-exclamation-triangle"></i>
+                            {% elif category == 'warning' %}
+                                <i class="fas fa-exclamation-circle"></i>
+                            {% else %}
+                                <i class="fas fa-info-circle"></i>
+                            {% endif %}
+                        </div>
+                        <div class="alert-content">
+                            <div class="alert-title">
+                                {% if category == 'success' %}Success
+                                {% elif category == 'error' %}Error
+                                {% elif category == 'warning' %}Warning
+                                {% else %}Information
+                                {% endif %}
+                            </div>
+                            <div class="alert-message">{{ message }}</div>
+                        </div>
+                        <button class="alert-close" onclick="dismissAlert(this)">
+                            <i class="fas fa-times"></i>
+                        </button>
                     </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
+    </div>
 
+    <!-- Main Content -->
+    <div class="container">
         {% block content %}{% endblock %}
     </div>
+
+    <!-- Alert System JavaScript -->
+    <script>
+        function dismissAlert(button) {
+            const alert = button.closest('.alert');
+            alert.classList.add('alert-dismiss');
+            setTimeout(() => {
+                alert.remove();
+            }, 300);
+        }
+        
+        // Auto-dismiss alerts after specified time
+        document.addEventListener('DOMContentLoaded', function() {
+            const alerts = document.querySelectorAll('.alert[data-auto-dismiss]');
+            alerts.forEach(alert => {
+                const dismissTime = parseInt(alert.dataset.autoDismiss);
+                if (dismissTime > 0) {
+                    setTimeout(() => {
+                        if (alert.parentNode) {
+                            alert.classList.add('alert-dismiss');
+                            setTimeout(() => {
+                                if (alert.parentNode) {
+                                    alert.remove();
+                                }
+                            }, 300);
+                        }
+                    }, dismissTime);
+                }
+            });
+        });
+    </script>
 
     {% block extra_js %}{% endblock %}
 </body>

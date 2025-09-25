@@ -576,36 +576,124 @@ h2 {
   background-color: var(--bg-secondary);
 }
 
-/* Alerts */
+/* Alert System - Toast Style */
+.alert-container {
+  position: fixed;
+  top: var(--space-6);
+  right: var(--space-6);
+  z-index: var(--z-modal);
+  max-width: 400px;
+  pointer-events: none;
+}
+
 .alert {
+  background: var(--white);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  margin-bottom: var(--space-3);
   padding: var(--space-4);
-  border-radius: var(--border-radius);
-  border: 1px solid transparent;
-  margin-bottom: var(--space-4);
+  border-left: 4px solid var(--primary);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  opacity: 0;
+  transform: translateX(100%);
+  animation: slideInAlert 0.3s ease-out forwards;
+  pointer-events: auto;
+  position: relative;
 }
 
 .alert-success {
-  background-color: var(--success-light);
+  border-left-color: var(--success);
+}
+
+.alert-success .alert-icon {
   color: var(--success);
-  border-color: var(--success);
 }
 
 .alert-warning {
-  background-color: var(--warning-light);
+  border-left-color: var(--warning);
+}
+
+.alert-warning .alert-icon {
   color: var(--warning);
-  border-color: var(--warning);
 }
 
 .alert-error {
-  background-color: var(--error-light);
+  border-left-color: var(--error);
+}
+
+.alert-error .alert-icon {
   color: var(--error);
-  border-color: var(--error);
 }
 
 .alert-info {
-  background-color: var(--info-light);
+  border-left-color: var(--info);
+}
+
+.alert-info .alert-icon {
   color: var(--info);
-  border-color: var(--info);
+}
+
+.alert-icon {
+  font-size: var(--font-size-lg);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.alert-content {
+  flex: 1;
+}
+
+.alert-title {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  margin: 0 0 var(--space-1) 0;
+  color: var(--text-primary);
+}
+
+.alert-message {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: var(--line-height-normal);
+}
+
+.alert-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  padding: var(--space-1);
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition-fast);
+}
+
+.alert-close:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+@keyframes slideInAlert {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.alert.alert-dismiss {
+  animation: slideOutAlert 0.3s ease-in forwards;
+}
+
+@keyframes slideOutAlert {
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
 }
 
 /* Utility Classes */
@@ -677,6 +765,18 @@ h2 {
   .btn {
     font-size: var(--font-size-sm);
     padding: var(--space-2) var(--space-3);
+  }
+  
+  /* Alert responsive design */
+  .alert-container {
+    top: var(--space-4);
+    right: var(--space-4);
+    left: var(--space-4);
+    max-width: none;
+  }
+  
+  .alert {
+    margin-bottom: var(--space-2);
   }
 }
 
