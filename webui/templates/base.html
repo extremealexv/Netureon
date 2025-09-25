@@ -16,24 +16,24 @@
     <!-- Navigation -->
     <nav class="navbar">
         <div class="container">
-            <a href="{{ url_for('main.index') }}" class="nav-brand">
+            <a href="{{ url_for('main.main_page') }}" class="nav-brand">
                 <img src="{{ url_for('static', filename='assets/logo.svg') }}" alt="Netureon" class="nav-logo">
                 <h1 class="nav-title">Netureon</h1>
             </a>
             <div class="nav-links">
-                <a href="{{ url_for('main.index') }}" {% if request.endpoint == 'main.index' %}class="active"{% endif %}>
+                <a href="{{ url_for('main.main_page') }}" {% if request.endpoint == 'main.main_page' %}class="active"{% endif %}>
                     <i class="fas fa-home"></i> Dashboard
                 </a>
                 <a href="{{ url_for('unknown.unknown_devices') }}" {% if request.endpoint == 'unknown.unknown_devices' %}class="active"{% endif %}>
                     <i class="fas fa-question-circle"></i> Unknown Devices
                 </a>
-                <a href="{{ url_for('review.review_devices') }}" {% if request.endpoint == 'review.review_devices' %}class="active"{% endif %}>
+                <a href="{{ url_for('review.review_page') }}" {% if request.endpoint == 'review.review_page' %}class="active"{% endif %}>
                     <i class="fas fa-eye"></i> Review
                 </a>
-                <a href="{{ url_for('system.system_status') }}" {% if request.endpoint == 'system.system_status' %}class="active"{% endif %}>
+                <a href="{{ url_for('system.system') }}" {% if request.endpoint == 'system.system' %}class="active"{% endif %}>
                     <i class="fas fa-cog"></i> System
                 </a>
-                <a href="{{ url_for('config.config_page') }}" {% if request.endpoint == 'config.config_page' %}class="active"{% endif %}>
+                <a href="{{ url_for('config.config') }}" {% if request.endpoint == 'config.config' %}class="active"{% endif %}>
                     <i class="fas fa-wrench"></i> Config
                 </a>
             </div>

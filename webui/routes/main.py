@@ -1,9 +1,15 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_from_directory
 from webui.models.database import Database
 from webui.utils.device_utils import DeviceManager
 from datetime import datetime
+import os
 
 main = Blueprint('main', __name__)
+
+@main.route('/favicon.ico')
+def favicon():
+    """Serve favicon from assets directory."""
+    return send_from_directory(os.path.join(main.root_path, '..', 'static', 'assets'), 'favicon.ico')
 
 @main.route('/', methods=['GET', 'POST'])
 def main_page():
