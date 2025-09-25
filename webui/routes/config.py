@@ -23,7 +23,8 @@ DEFAULT_SETTINGS = {
     'enable_email_notifications': 'false',
     'enable_telegram_notifications': 'false',
     'scanning_interval': '300',  # 5 minutes default
-    'scanning_enabled': 'true'
+    'scanning_enabled': 'true',
+    'logging_level': 'INFO'  # Default logging level
 }
 
 def update_scan_timer(interval):
@@ -49,8 +50,12 @@ def update_scan_timer(interval):
 def config():
     """Handle configuration page."""
     if request.method == 'POST':
-        # Update all settings
+        # Update all settings except special ones
         for key in DEFAULT_SETTINGS.keys():
+            if key in ['scanning_interval', 'logging_level']:
+                # Skip special handling keys
+                continue
+            
             if key in ['scanning_enabled', 'enable_email_notifications', 'enable_telegram_notifications']:
                 # Handle checkbox fields - they only appear in form data when checked
                 value = 'true' if key in request.form else 'false'
@@ -58,46 +63,44 @@ def config():
                 value = request.form.get(key, DEFAULT_SETTINGS[key])
             Configuration.set_setting(key, value)
 
-            # Handle scanning interval updates
-            if key == 'scanning_interval':
-                interval = request.form.get('scanning_interval', '300')
-                try:
-                    interval = int(interval)
-                    if interval < 60:
-                        flash('Scanning interval must be at least 60 seconds', 'error')
-                    else:
-                        if update_scan_timer(interval):
-                            db.execute_query(
-                                "UPDATE configuration SET value = %s WHERE key = 'scanning_interval'",
-                                (str(interval),)
-                            )
-                            flash('Scanning interval updated successfully', 'success')
-                        else:
-                            flash('Failed to update scanning interval', 'error')
-                except ValueError:
-                    flash('Invalid scanning interval value', 'error')
-                    return redirect(url_for('config.config'))
-                except Exception as e:
-                    flash(f'Failed to update scanning interval: {str(e)}', 'error')
-                    return redirect(url_for('config.config'))
+        # Handle scanning interval updates specifically
+        interval = request.form.get('scanning_interval', '300')
+        try:
+            interval = int(interval)
+            if interval < 60:
+                flash('Scanning interval must be at least 60 seconds', 'error')
+            else:
+                # Use ORM method instead of raw database query
+                Configuration.set_setting('scanning_interval', str(interval))
+                if update_scan_timer(interval):
+                    flash('Scanning interval updated successfully', 'success')
+                else:
+                    flash('Failed to update system timer (settings saved)', 'warning')
+        except ValueError:
+            flash('Invalid scanning interval value', 'error')
+            return redirect(url_for('config.config'))
+        except Exception as e:
+            logger.error(f"Failed to update scanning interval: {str(e)}")
+            flash(f'Failed to update scanning interval: {str(e)}', 'error')
+            return redirect(url_for('config.config'))
         
-        # Handle logging level with app context
+        # Handle logging level specifically
         logging_level = request.form.get('logging_level', 'INFO')
         try:
             if hasattr(logging, logging_level):
-                with current_app.app_context():
-                    db.execute_query(
-                        "UPDATE configuration SET value = %s WHERE key = 'logging_level'",
-                        (logging_level,)
-                    )
-                    # Reconfigure logging across all modules
-                    if configure_logging(current_app):
-                        flash(f'Logging level updated to {logging_level}', 'success')
-                    else:
-                        flash('Failed to apply logging level changes', 'error')
+                # Use ORM method to set logging level
+                Configuration.set_setting('logging_level', logging_level)
+                
+                # Reconfigure logging across all modules
+                if configure_logging(current_app):
+                    flash(f'Logging level updated to {logging_level}', 'success')
+                    logger.info(f"Logging level changed to {logging_level}")
+                else:
+                    flash('Failed to apply logging level changes', 'error')
             else:
                 flash(f'Invalid logging level: {logging_level}', 'error')
         except Exception as e:
+            logger.error(f"Failed to update logging level: {str(e)}")
             flash(f'Failed to update logging level: {str(e)}', 'error')
             
         return redirect(url_for('config.config'))

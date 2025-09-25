@@ -109,11 +109,11 @@
                 <div class="form-group">
                     <label for="loggingLevel">Logging Level</label>
                     <select class="form-select" id="loggingLevel" name="logging_level">
-                        <option value="DEBUG">Debug - Most verbose</option>
-                        <option value="INFO">Info - Normal operation</option>
-                        <option value="WARNING">Warning - Issues that need attention</option>
-                        <option value="ERROR">Error - Serious problems only</option>
-                        <option value="CRITICAL">Critical - Fatal errors only</option>
+                        <option value="DEBUG" {% if settings.logging_level == 'DEBUG' %}selected{% endif %}>Debug - Most verbose</option>
+                        <option value="INFO" {% if settings.logging_level == 'INFO' or not settings.logging_level %}selected{% endif %}>Info - Normal operation</option>
+                        <option value="WARNING" {% if settings.logging_level == 'WARNING' %}selected{% endif %}>Warning - Issues that need attention</option>
+                        <option value="ERROR" {% if settings.logging_level == 'ERROR' %}selected{% endif %}>Error - Serious problems only</option>
+                        <option value="CRITICAL" {% if settings.logging_level == 'CRITICAL' %}selected{% endif %}>Critical - Fatal errors only</option>
                     </select>
                     <div class="form-text text-muted">
                         <p>Select how detailed the application logs should be:</p>
