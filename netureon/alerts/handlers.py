@@ -26,7 +26,7 @@ class DeviceHandler:
                             nd.last_ip::text,
                             nd.last_seen
                         FROM new_devices nd
-                        LEFT JOIN alerts a ON a.device_id = nd.mac_address 
+                        LEFT JOIN alerts a ON a.device_mac = nd.mac_address 
                             AND a.alert_type = 'new_device'
                         WHERE a.id IS NULL
                         AND nd.last_seen > NOW() - INTERVAL '1 hour'
@@ -111,7 +111,7 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                 with conn.cursor() as cursor:
                     cursor.execute("""
                         INSERT INTO alerts 
-                        (device_id, alert_type, details)
+                        (device_mac, alert_type, details)
                         VALUES (%s::macaddr, 'new_device', 'New device detected on network')
                         RETURNING id
                     """, (mac,))
@@ -132,7 +132,7 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                 with conn.cursor() as cursor:
                     cursor.execute("""
                         SELECT 
-                            device_id,
+                            device_mac,
                             alert_type,
                             created_at
                         FROM alerts 
@@ -143,7 +143,7 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                     if row:
                         return {
                             'id': alert_id,
-                            'device_id': row[0],
+                            'device_mac': row[0],
                             'type': row[1],
                             'timestamp': row[2]
                         }
