@@ -95,6 +95,26 @@ def config():
                 if configure_logging(current_app):
                     flash(f'Logging level updated to {logging_level}', 'success')
                     logger.info(f"Logging level changed to {logging_level}")
+                    
+                    # Try to reconfigure logging for running services
+                    try:
+                        script_path = Path(__file__).parent.parent.parent / 'scripts' / 'reconfigure_logging.py'
+                        if script_path.exists():
+                            import subprocess
+                            result = subprocess.run(
+                                ['python', str(script_path)],
+                                capture_output=True,
+                                text=True,
+                                timeout=10
+                            )
+                            if result.returncode == 0:
+                                logger.info("Successfully notified running services of logging level change")
+                            else:
+                                logger.warning(f"Could not notify running services: {result.stderr}")
+                        else:
+                            logger.info("Logging reconfiguration script not found, services may need restart")
+                    except Exception as script_error:
+                        logger.warning(f"Could not run logging reconfiguration script: {script_error}")
                 else:
                     flash('Failed to apply logging level changes', 'error')
             else:

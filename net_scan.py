@@ -14,7 +14,9 @@ from scapy.all import ARP, Ether, srp
 import psycopg2
 from concurrent.futures import ThreadPoolExecutor
 import argparse
+import signal
 from dotenv import load_dotenv
+from netureon.config.logging_config import configure_logger, get_logging_level_from_db
 
 # Load environment variables
 load_dotenv()
@@ -22,6 +24,7 @@ load_dotenv()
 class NetworkScanner:
     def __init__(self, single_scan=False):
         self.setup_logging()
+        self.setup_signal_handlers()
         self.notifier = sdnotify.SystemdNotifier()
         self.running = True
         self.last_watchdog = time.time()
@@ -38,46 +41,51 @@ class NetworkScanner:
         self.logger.info("Netureon Scanner v1.3.1 initialized")
 
     def setup_logging(self):
-        """Configure logging with proper file handling"""
+        """Configure logging with proper file handling using database configuration"""
         log_dir = os.path.expanduser('~/Netureon/logs')
-        os.makedirs(log_dir, exist_ok=True)
-        
         log_file = os.path.join(log_dir, 'netureon.log')
         
-        # Create console handler
-        console = logging.StreamHandler()
-        console.setLevel(logging.INFO)
+        # Use centralized logging configuration that reads from database
+        self.logger = configure_logger('netureon', log_file)
         
-        # Create file handler
-        file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=10*1024*1024,
-            backupCount=5,
-            delay=False,
-            mode='a+'
-        )
-        file_handler.setLevel(logging.INFO)
-        
-        # Create formatters and add them to the handlers
-        formatter = logging.Formatter(
-            '%(asctime)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        console.setFormatter(formatter)
-        file_handler.setFormatter(formatter)
-        
-        # Get the logger and set level
-        self.logger = logging.getLogger('netureon')
-        self.logger.setLevel(logging.INFO)
-        
-        # Remove any existing handlers
-        self.logger.handlers = []
-        
-        # Add the handlers to the logger
-        self.logger.addHandler(console)
-        self.logger.addHandler(file_handler)
+        # Log the current configuration
+        db_level = get_logging_level_from_db()
+        self.logger.info(f"Scanner logging configured to level: {logging.getLevelName(db_level)}")
         
         return self.logger
+
+    def setup_signal_handlers(self):
+        """Set up signal handlers for graceful shutdown and configuration reload."""
+        # Handle SIGTERM for graceful shutdown
+        signal.signal(signal.SIGTERM, self.signal_handler)
+        
+        # Handle SIGUSR1 for logging configuration reload (Unix only)
+        if hasattr(signal, 'SIGUSR1'):
+            signal.signal(signal.SIGUSR1, self.reload_logging_config)
+        
+        self.logger.debug("Signal handlers configured")
+
+    def signal_handler(self, signum, frame):
+        """Handle shutdown signals."""
+        self.logger.info(f"Received signal {signum}, shutting down gracefully...")
+        self.running = False
+
+    def reload_logging_config(self, signum, frame):
+        """Reload logging configuration from database."""
+        try:
+            self.logger.info("Reloading logging configuration...")
+            old_level = self.logger.level
+            
+            # Reconfigure logger with new database settings
+            log_dir = os.path.expanduser('~/Netureon/logs')
+            log_file = os.path.join(log_dir, 'netureon.log')
+            self.logger = configure_logger('netureon', log_file)
+            
+            new_level = self.logger.level
+            self.logger.info(f"Logging configuration reloaded: {logging.getLevelName(old_level)} -> {logging.getLevelName(new_level)}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to reload logging configuration: {e}")
 
     def connect_db(self):
         """Establish database connection"""

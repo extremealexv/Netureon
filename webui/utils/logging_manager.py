@@ -1,10 +1,30 @@
 import logging
 from flask import current_app
 from ..models.database import Database
+import sys
+import os
+
+# Add the project root to Python path to import netureon modules
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+try:
+    from netureon.config.logging_config import get_logging_level_from_db, reconfigure_existing_loggers
+except ImportError:
+    # Fallback if the centralized logging module is not available
+    def get_logging_level_from_db():
+        return logging.INFO
+    def reconfigure_existing_loggers():
+        return True
 
 def configure_logging(app=None):
     """Configure logging levels for all modules based on database settings"""
     try:
+        # Try to use the centralized logging configuration first
+        if reconfigure_existing_loggers():
+            logging.getLogger('webui').info("Logging reconfigured using centralized system")
+            return True
+        
+        # Fallback to original method if centralized approach fails
         # If app is provided, use its context
         if app:
             ctx = app.app_context()
@@ -42,12 +62,16 @@ def configure_logging(app=None):
                 'webui.models',
                 'webui.alerts',
                 'webui.handlers',
-                'webui.utils'
+                'webui.utils',
+                'netureon'  # Add the main netureon logger
             ]
 
             for module in modules:
                 logger = logging.getLogger(module)
                 logger.setLevel(getattr(logging, level))
+                # Also update handlers if they exist
+                for handler in logger.handlers:
+                    handler.setLevel(getattr(logging, level))
 
             logging.getLogger('webui').info(f"Logging level set to {level}")
             return True
