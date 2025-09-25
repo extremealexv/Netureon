@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Netureon - Design Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="css/netureon.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <a href="#" class="nav-brand">
+                <img src="assets/logo.svg" alt="Netureon" class="nav-logo">
+                <h1 class="nav-title">Netureon</h1>
+            </a>
+            <div class="nav-links">
+                <a href="#" class="active"><i class="fas fa-home"></i> Dashboard</a>
+                <a href="#"><i class="fas fa-question-circle"></i> Unknown Devices</a>
+                <a href="#"><i class="fas fa-eye"></i> Review</a>
+                <a href="#"><i class="fas fa-cog"></i> System</a>
+                <a href="#"><i class="fas fa-wrench"></i> Config</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <header class="page-header">
+        <div class="container">
+            <h1><i class="fas fa-shield-alt"></i> Network Device Dashboard</h1>
+            <p>Monitor and manage your network security in real-time</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Content Header -->
+        <div class="content-header">
+            <div>
+                <h2><i class="fas fa-network-wired"></i> Known Devices</h2>
+                <p class="text-muted mb-0">3 devices monitored</p>
+            </div>
+            <div class="page-actions">
+                <select class="form-select">
+                    <option>Sort by Name</option>
+                    <option>Sort by Status</option>
+                </select>
+                <select class="form-select">
+                    <option>All Devices</option>
+                    <option>Active Only</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Device Grid -->
+        <div class="device-grid">
+            <!-- Active Device Card -->
+            <div class="device-card status-active has-checkbox">
+                <input type="checkbox" class="device-checkbox">
+                <div class="activity-indicator"></div>
+                <span class="status-badge status-active">
+                    <i class="fas fa-check-circle"></i> Active
+                </span>
+                
+                <div class="device-header">
+                    <h3><i class="fas fa-desktop"></i> Office Workstation</h3>
+                    <span class="threat-badge low">LOW RISK</span>
+                </div>
+                
+                <div class="device-info">
+                    <p><strong>IP Address:</strong> 192.168.1.100</p>
+                    <p><strong>MAC Address:</strong> AA:BB:CC:DD:EE:FF</p>
+                    <p><strong>Vendor:</strong> Dell Inc.</p>
+                    <p><strong>Device Type:</strong> Computer</p>
+                    <p><strong>Last Seen:</strong> 2024-01-15 14:30:22</p>
+                    <p><strong>Open Ports:</strong></p>
+                    <ul class="port-list">
+                        <li><i class="fas fa-network-wired"></i> 80 (HTTP)</li>
+                        <li><i class="fas fa-network-wired"></i> 443 (HTTPS)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Inactive Device Card -->
+            <div class="device-card status-inactive has-checkbox">
+                <input type="checkbox" class="device-checkbox">
+                <div class="activity-indicator inactive"></div>
+                <span class="status-badge status-inactive">
+                    <i class="fas fa-times-circle"></i> Inactive
+                </span>
+                
+                <div class="device-header">
+                    <h3><i class="fas fa-mobile-alt"></i> Mobile Device</h3>
+                    <span class="threat-badge medium">MEDIUM RISK</span>
+                </div>
+                
+                <div class="device-info">
+                    <p><strong>IP Address:</strong> 192.168.1.150</p>
+                    <p><strong>MAC Address:</strong> 11:22:33:44:55:66</p>
+                    <p><strong>Vendor:</strong> Apple Inc.</p>
+                    <p><strong>Device Type:</strong> Mobile</p>
+                    <p><strong>Last Seen:</strong> 2024-01-14 09:15:33</p>
+                </div>
+            </div>
+
+            <!-- High Risk Device Card -->
+            <div class="device-card status-active has-checkbox threat-high">
+                <input type="checkbox" class="device-checkbox">
+                <div class="activity-indicator"></div>
+                <span class="status-badge status-active">
+                    <i class="fas fa-check-circle"></i> Active
+                </span>
+                
+                <div class="device-header">
+                    <h3><i class="fas fa-server"></i> Unknown Server</h3>
+                    <span class="threat-badge high">HIGH RISK</span>
+                </div>
+                
+                <div class="device-info">
+                    <p><strong>IP Address:</strong> 192.168.1.200</p>
+                    <p><strong>MAC Address:</strong> FF:EE:DD:CC:BB:AA</p>
+                    <p><strong>Vendor:</strong> Unknown</p>
+                    <p><strong>Device Type:</strong> Server</p>
+                    <p><strong>Last Seen:</strong> 2024-01-15 14:28:45</p>
+                    <p><strong>Open Ports:</strong></p>
+                    <ul class="port-list">
+                        <li><i class="fas fa-network-wired"></i> 22 (SSH)</li>
+                        <li><i class="fas fa-network-wired"></i> 3306 (MySQL)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button type="button" class="btn btn-warning">
+                <i class="fas fa-question-circle"></i> Mark as Unknown
+            </button>
+            <button type="button" class="btn btn-danger">
+                <i class="fas fa-trash"></i> Remove Device
+            </button>
+            <button type="button" class="btn btn-secondary">
+                <i class="fas fa-ban"></i> Block Device
+            </button>
+            <input type="text" placeholder="Add notes for selected devices" class="form-control" style="flex: 1; min-width: 200px;">
+            <button type="button" class="btn btn-primary">
+                <i class="fas fa-sticky-note"></i> Add Notes
+            </button>
+        </div>
+    </div>
+</body>
+</html>

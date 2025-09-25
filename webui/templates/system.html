@@ -1,8 +1,18 @@
-{% extends "main.html" %}
+{% extends 'base.html' %}
+
+{% block title %}Netureon - System Status{% endblock %}
+
+{% block header_title %}<i class="fas fa-cog"></i> System Status{% endblock %}
+{% block header_description %}Monitor system health and configuration{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>🖥️ System Information</h2>
+    <!-- Content Header -->
+    <div class="content-header">
+        <div>
+            <h2><i class="fas fa-server"></i> System Information</h2>
+            <p class="text-muted mb-0">Current system status and configuration</p>
+        </div>
+    </div>
 
     {% if error %}
     <div class="alert alert-danger" role="alert">

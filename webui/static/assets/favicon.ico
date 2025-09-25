@@ -1,0 +1,13 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Favicon version of the logo - simplified -->
+  <path d="M8 1L13 3V7C13 10.5 10.5 13.25 8 15C5.5 13.25 3 10.5 3 7V3L8 1Z" fill="#2563eb"/>
+  <circle cx="8" cy="6" r="1" fill="white"/>
+  <circle cx="6" cy="8" r="0.7" fill="white"/>
+  <circle cx="10" cy="8" r="0.7" fill="white"/>
+  <circle cx="7" cy="10" r="0.7" fill="white"/>
+  <circle cx="9" cy="10" r="0.7" fill="white"/>
+  <line x1="8" y1="6" x2="6" y2="8" stroke="white" stroke-width="0.5"/>
+  <line x1="8" y1="6" x2="10" y2="8" stroke="white" stroke-width="0.5"/>
+  <line x1="6" y1="8" x2="7" y2="10" stroke="white" stroke-width="0.5"/>
+  <line x1="10" y1="8" x2="9" y2="10" stroke="white" stroke-width="0.5"/>
+</svg>

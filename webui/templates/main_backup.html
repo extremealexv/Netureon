@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Netureon - Known Devices</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='assets/favicon.ico') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/netureon.css') }}" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <a href="{{ url_for('main.index') }}" class="nav-brand">
+                <img src="{{ url_for('static', filename='assets/logo.svg') }}" alt="Netureon" class="nav-logo">
+                <h1 class="nav-title">Netureon</h1>
+            </a>
+            <div class="nav-links">
+                <a href="{{ url_for('main.index') }}"><i class="fas fa-home"></i> Dashboard</a>
+                <a href="{{ url_for('unknown.unknown_devices') }}"><i class="fas fa-question-circle"></i> Unknown Devices</a>
+                <a href="{{ url_for('review.review_devices') }}"><i class="fas fa-eye"></i> Review</a>
+                <a href="{{ url_for('system.system_status') }}"><i class="fas fa-cog"></i> System</a>
+                <a href="{{ url_for('config.config_page') }}"><i class="fas fa-wrench"></i> Config</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <header class="page-header">
+        <div class="container">
+            <h1><i class="fas fa-shield-alt"></i> Network Device Dashboard</h1>
+            <p>Monitor and manage your network security in real-time</p>
+        </div>
+    </header>
+
+    <div class="container">
+            position: relative;
+        }
+
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+
+        .device-header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #333;
+        }
+
+        .device-info {
+            margin-left: 1rem;
+            flex-grow: 1;
+        }
+
+        .device-info p {
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+
+        .port-list {
+            list-style: none;
+            padding-left: 0;
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-badge.status-active {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .status-badge.status-inactive {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn-warning {
+            background-color: #ffc107;
+            color: black;
+        }
+
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .form-select, .form-control {
+            padding: 0.5rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            max-width: 200px;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .form-check {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+        }
+
+        .form-check-input {
+            width: 1.2em;
+            height: 1.2em;
+            margin-top: 0.25em;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('main.main_page') }}">🔐 Netureon</a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="{{ url_for('main.main_page') }}">Known Devices</a>
+                <a class="nav-link" href="{{ url_for('review.review_page') }}">Review</a>
+                <a class="nav-link" href="{{ url_for('unknown.unknown_devices') }}">Unknown</a>
+                <a class="nav-link" href="{{ url_for('system.system') }}">System</a>
+                <a class="nav-link" href="{{ url_for('config.config') }}">Configuration</a>
+            </div>
+        </div>
+    </nav>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}
+        <form method="post" action="{{ url_for('main.main_page') }}">
+            <div class="device-grid">
+                {% for device in devices %}
+                <div class="device-card has-checkbox status-{{ device.activity_status }}">
+                    <input class="device-checkbox" type="checkbox" name="selected_devices" 
+                           value="{{ device.mac_address }}" id="device-{{ loop.index }}">
+                    
+                    <div class="activity-indicator {{ device.activity_status }}"></div>
+                    
+                    <h3>{{ device.hostname or 'Hostname not found' }}</h3>
+                    
+                    <div class="status-badge status-{{ device.activity_status }}">
+                        {{ 'Active' if device.activity_status == 'active' else 'Inactive' }}
+                    </div>
+                    
+                    {% if device.has_alerts %}
+                        <div class="threat-badge high">New Alerts</div>
+                    {% endif %}
+                    
+                    <p><strong>MAC:</strong> {{ device.mac_address }}</p>
+                    <p><strong>Vendor:</strong> {{ device.vendor or 'Unknown vendor' }}</p>
+                    <p><strong>Type:</strong> {{ device.device_type or 'Unknown' }}</p>
+                    <p><strong>Last IP:</strong> {{ device.last_ip }}</p>
+                    <p><strong>Last Seen:</strong> {{ device.last_seen }}</p>
+                    
+                    {% if device.open_ports and device.open_ports|length > 0 %}
+                        <p><strong>Open Ports:</strong></p>
+                        <ul class="list-unstyled">
+                        {% for port in device.open_ports %}
+                            <li>{{ port.port }} ({{ port.service }})</li>
+                        {% endfor %}
+                        </ul>
+                    {% endif %}
+
+                    {% if device.notes %}
+                        <p><strong>Notes:</strong> {{ device.notes }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="action-buttons">
+                <button type="submit" name="action" value="block" class="btn btn-warning">
+                    ⚠️ Mark as Unknown
+                </button>
+                <button type="submit" name="action" value="delete" class="btn btn-danger">
+                    🗑️ Remove Device
+                </button>
+                <input type="text" name="notes" placeholder="Add notes" class="form-control">
+            </div>
+        </form>
+        {% endblock %}
+    </div>
+</body>
+</html>

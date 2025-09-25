@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Netureon - Network Security Monitoring{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='assets/favicon.ico') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/netureon.css') }}" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <a href="{{ url_for('main.index') }}" class="nav-brand">
+                <img src="{{ url_for('static', filename='assets/logo.svg') }}" alt="Netureon" class="nav-logo">
+                <h1 class="nav-title">Netureon</h1>
+            </a>
+            <div class="nav-links">
+                <a href="{{ url_for('main.index') }}" {% if request.endpoint == 'main.index' %}class="active"{% endif %}>
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+                <a href="{{ url_for('unknown.unknown_devices') }}" {% if request.endpoint == 'unknown.unknown_devices' %}class="active"{% endif %}>
+                    <i class="fas fa-question-circle"></i> Unknown Devices
+                </a>
+                <a href="{{ url_for('review.review_devices') }}" {% if request.endpoint == 'review.review_devices' %}class="active"{% endif %}>
+                    <i class="fas fa-eye"></i> Review
+                </a>
+                <a href="{{ url_for('system.system_status') }}" {% if request.endpoint == 'system.system_status' %}class="active"{% endif %}>
+                    <i class="fas fa-cog"></i> System
+                </a>
+                <a href="{{ url_for('config.config_page') }}" {% if request.endpoint == 'config.config_page' %}class="active"{% endif %}>
+                    <i class="fas fa-wrench"></i> Config
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    {% block page_header %}
+    <header class="page-header">
+        <div class="container">
+            <h1>{% block header_title %}<i class="fas fa-shield-alt"></i> Network Security Monitoring{% endblock %}</h1>
+            <p>{% block header_description %}Monitor and manage your network security in real-time{% endblock %}</p>
+        </div>
+    </header>
+    {% endblock %}
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Alert Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'error' if category == 'error' else category }}">
+                        <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'info-circle' }}"></i>
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
