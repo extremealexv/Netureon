@@ -19,21 +19,25 @@ class DeviceHandler:
         try:
             with psycopg2.connect(**self.db_config) as conn:
                 with conn.cursor() as cursor:
-                    # Get only new devices without profiles
+                    # Get new devices that haven't been alerted yet
                     cursor.execute("""
                         SELECT DISTINCT ON (nd.mac_address)
                             nd.mac_address::text,
                             nd.last_ip::text,
                             nd.last_seen
                         FROM new_devices nd
-                        LEFT JOIN device_profiles dp ON dp.mac_address = nd.mac_address
-                        LEFT JOIN alerts a ON a.device_mac = nd.mac_address 
-                        WHERE dp.mac_address IS NULL
-                        AND a.id IS NULL
-                        AND nd.last_seen > NOW() - INTERVAL '5 minutes'
+                        LEFT JOIN alerts a ON a.device_id = nd.mac_address 
+                            AND a.alert_type = 'new_device'
+                        WHERE a.id IS NULL
+                        AND nd.last_seen > NOW() - INTERVAL '1 hour'
+                        ORDER BY nd.mac_address, nd.last_seen DESC
                     """)
                     
                     new_devices = cursor.fetchall()
+                    if new_devices:
+                        logger.info(f"Found {len(new_devices)} new devices to process")
+                    else:
+                        logger.debug("No new devices found for alerting")
                     return new_devices if new_devices else []
                     
         except Exception as e:
@@ -50,8 +54,8 @@ class DeviceHandler:
                         SET hostname = %s,
                             vendor = %s,
                             device_type = %s,
-                            open_ports = %s::jsonb,
-                            last_updated = NOW()
+                            open_ports = %s,
+                            last_seen = NOW()
                         WHERE mac_address = %s::macaddr
                     """, (
                         profile.get('hostname', 'Unknown'),
@@ -107,8 +111,8 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                 with conn.cursor() as cursor:
                     cursor.execute("""
                         INSERT INTO alerts 
-                        (device_mac, alert_type)
-                        VALUES (%s::macaddr, 'new_device')
+                        (device_id, alert_type, details)
+                        VALUES (%s::macaddr, 'new_device', 'New device detected on network')
                         RETURNING id
                     """, (mac,))
                     
@@ -128,7 +132,7 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                 with conn.cursor() as cursor:
                     cursor.execute("""
                         SELECT 
-                            device_mac,
+                            device_id,
                             alert_type,
                             created_at
                         FROM alerts 
@@ -139,7 +143,7 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                     if row:
                         return {
                             'id': alert_id,
-                            'device_mac': row[0],
+                            'device_id': row[0],
                             'type': row[1],
                             'timestamp': row[2]
                         }
