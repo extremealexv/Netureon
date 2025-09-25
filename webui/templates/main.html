@@ -33,16 +33,17 @@
             <!-- Device Grid -->
             <div class="device-grid">
                 {% for device in devices %}
-                <div class="device-card {% if device.is_active %}status-active{% else %}status-inactive{% endif %} has-checkbox">
+                {% if device.mac_address %}
+                <div class="device-card has-checkbox">
                     <!-- Device Selection Checkbox -->
-                    <input type="checkbox" name="selected_devices" value="{{ device.id }}" class="device-checkbox">
+                    <input type="checkbox" name="selected_devices" value="{{ device.mac_address }}" class="device-checkbox">
                     
                     <!-- Activity Indicator -->
-                    <div class="activity-indicator {% if not device.is_active %}inactive{% endif %}"></div>
+                    <div class="activity-indicator {% if device.activity_status != 'active' %}inactive{% endif %}"></div>
                     
                     <!-- Status Badge -->
-                    <span class="status-badge {% if device.is_active %}status-active{% else %}status-inactive{% endif %}">
-                        {% if device.is_active %}
+                    <span class="status-badge {% if device.activity_status == 'active' %}status-active{% else %}status-inactive{% endif %}">
+                        {% if device.activity_status == 'active' %}
                             <i class="fas fa-check-circle"></i> Active
                         {% else %}
                             <i class="fas fa-times-circle"></i> Inactive
@@ -53,18 +54,18 @@
                     <div class="device-header">
                         <h3>
                             <i class="fas fa-desktop"></i>
-                            {{ device.hostname or device.ip_address or 'Unknown Device' }}
+                            {{ device.hostname or device.last_ip or 'Unknown Device' }}
                         </h3>
-                        {% if device.threat_level %}
-                            <span class="threat-badge {{ device.threat_level }}">
-                                {{ device.threat_level.upper() }} RISK
+                        {% if device.risk_level %}
+                            <span class="threat-badge {{ device.risk_level }}">
+                                {{ device.risk_level.upper() }} RISK
                             </span>
                         {% endif %}
                     </div>
 
                     <!-- Device Information -->
                     <div class="device-info">
-                        <p><strong>IP Address:</strong> {{ device.ip_address or 'Unknown' }}</p>
+                        <p><strong>IP Address:</strong> {{ device.last_ip or 'Unknown' }}</p>
                         <p><strong>MAC Address:</strong> {{ device.mac_address }}</p>
                         <p><strong>Vendor:</strong> {{ device.vendor or 'Unknown vendor' }}</p>
                         <p><strong>Device Type:</strong> {{ device.device_type or 'Unknown' }}</p>
@@ -85,6 +86,7 @@
                         {% endif %}
                     </div>
                 </div>
+                {% endif %}
                 {% endfor %}
             </div>
 
@@ -134,8 +136,8 @@
                     bValue = b.querySelector('h3').textContent.trim().toLowerCase();
                     break;
                 case 'status':
-                    aValue = a.classList.contains('status-active') ? 1 : 0;
-                    bValue = b.classList.contains('status-active') ? 1 : 0;
+                    aValue = a.querySelector('.status-badge').classList.contains('status-active') ? 1 : 0;
+                    bValue = b.querySelector('.status-badge').classList.contains('status-active') ? 1 : 0;
                     return bValue - aValue; // Active first
                 case 'last_seen':
                     // This would need the actual timestamp data for proper sorting
@@ -160,13 +162,14 @@
         
         devices.forEach(device => {
             let show = true;
+            const statusBadge = device.querySelector('.status-badge');
             
             switch(filterBy) {
                 case 'active':
-                    show = device.classList.contains('status-active');
+                    show = statusBadge && statusBadge.classList.contains('status-active');
                     break;
                 case 'inactive':
-                    show = device.classList.contains('status-inactive');
+                    show = statusBadge && statusBadge.classList.contains('status-inactive');
                     break;
                 case 'all':
                 default:

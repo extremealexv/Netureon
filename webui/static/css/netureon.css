@@ -267,14 +267,13 @@ h2 {
   box-shadow: var(--shadow-md);
   transition: var(--transition-fast);
   position: relative;
-  border-left: 4px solid var(--primary);
   border: 1px solid var(--border-light);
 }
 
 .device-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
-  border-color: var(--primary-light);
+  border-color: var(--border-dark);
 }
 
 .device-card h3 {
@@ -359,26 +358,7 @@ h2 {
   color: var(--error);
 }
 
-/* Card Border Colors */
-.device-card.threat-low {
-  border-left-color: var(--success);
-}
-
-.device-card.threat-medium {
-  border-left-color: var(--warning);
-}
-
-.device-card.threat-high {
-  border-left-color: var(--error);
-}
-
-.device-card.status-active {
-  border-left-color: var(--success);
-}
-
-.device-card.status-inactive {
-  border-left-color: var(--gray-500);
-}
+/* Card Border Colors - Removed to keep cards white */
 
 /* Checkboxes */
 .device-checkbox {
@@ -750,15 +730,4 @@ h2 {
     border: 1px solid #f5c6cb;
 }
 
-/* Device Card Threat Status Colors - Keep background white */
-.device-card.status-low {
-    border-left: 4px solid #17a2b8;
-}
-
-.device-card.status-medium {
-    border-left: 4px solid #ffc107;
-}
-
-.device-card.status-high {
-    border-left: 4px solid #dc3545;
-}
+/* Device cards kept clean and white - all status shown via badges only */

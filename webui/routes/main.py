@@ -3,6 +3,23 @@ from webui.models.database import Database
 from webui.utils.device_utils import DeviceManager
 from datetime import datetime
 import os
+import logging
+import re
+
+logger = logging.getLogger(__name__)
+
+def is_valid_mac_address(mac):
+    """Validate MAC address format."""
+    if not mac or not isinstance(mac, str):
+        return False
+    
+    mac = mac.strip().lower()
+    if not mac:
+        return False
+        
+    # Check for valid MAC address pattern
+    mac_pattern = r'^([0-9a-f]{2}[:-]){5}([0-9a-f]{2})$'
+    return bool(re.match(mac_pattern, mac))
 
 main = Blueprint('main', __name__)
 
@@ -17,11 +34,18 @@ def main_page():
         selected_devices = request.form.getlist('selected_devices')
         action = request.form.get('action')
         
+        logger.info(f"POST request - action: {action}, raw selected_devices: {selected_devices}")
+        
+        # Filter out empty and invalid MAC addresses
+        selected_devices = [mac.strip() for mac in selected_devices if is_valid_mac_address(mac)]
+        
+        logger.info(f"Filtered selected_devices: {selected_devices}")
+        
         if not selected_devices:
             flash('Please select at least one device', 'warning')
             return redirect(url_for('main.main_page'))
             
-        if action == 'block':
+        if action == 'mark_unknown' or action == 'block':
             handle_block_action(selected_devices)
         elif action == 'delete':
             handle_delete_action(selected_devices)
@@ -71,6 +95,11 @@ def handle_block_action(selected_devices):
     
     for mac in selected_devices:
         try:
+            # Skip invalid MAC addresses
+            if not is_valid_mac_address(mac):
+                logger.warning(f"Skipping invalid MAC address: {mac}")
+                continue
+                
             device = Database.execute_query("""
                 WITH mac_addr AS (
                     SELECT %s::macaddr AS addr
@@ -108,7 +137,13 @@ def handle_delete_action(selected_devices):
     deleted = 0
     for mac in selected_devices:
         try:
+            # Skip invalid MAC addresses
+            if not is_valid_mac_address(mac):
+                logger.warning(f"Skipping invalid MAC address for deletion: {mac}")
+                continue
+                
             mac_clean = mac.strip().lower()
+                
             # Delete from known_devices and cleanup related data
             queries = [
                 # Remove any existing alerts
@@ -131,8 +166,10 @@ def handle_delete_action(selected_devices):
             # Execute all cleanup in a single transaction
             Database.execute_transaction(queries)
             deleted += 1
+            logger.info(f"Successfully deleted device: {mac_clean}")
             
         except Exception as e:
+            logger.error(f'Error deleting device {mac}: {str(e)}')
             flash(f'Error deleting device {mac}: {str(e)}', 'error')
             continue
     
