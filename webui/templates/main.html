@@ -56,11 +56,6 @@
                             <i class="fas fa-desktop"></i>
                             {{ device.hostname or device.last_ip or 'Unknown Device' }}
                         </h3>
-                        {% if device.risk_level %}
-                            <span class="threat-badge {{ device.risk_level }}">
-                                {{ device.risk_level.upper() }} RISK
-                            </span>
-                        {% endif %}
                     </div>
 
                     <!-- Device Information -->
