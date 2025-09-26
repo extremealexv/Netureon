@@ -111,8 +111,8 @@ Open Ports: {', '.join(f"{p['port']} ({p['service']})" for p in profile.get('ope
                 with conn.cursor() as cursor:
                     cursor.execute("""
                         INSERT INTO alerts 
-                        (device_mac, alert_type, details)
-                        VALUES (%s::macaddr, 'new_device', 'New device detected on network')
+                        (device_mac, alert_type)
+                        VALUES (%s::macaddr, 'new_device')
                         RETURNING id
                     """, (mac,))
                     
