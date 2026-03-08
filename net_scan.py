@@ -171,18 +171,10 @@ class NetworkScanner:
                 cur.execute("""
                     UPDATE known_devices 
                     SET last_ip = %s::inet,
-                        last_seen = NOW(),
-                        status = 'active'
+                        last_seen = NOW()
                     WHERE mac_address = %s::macaddr
                 """, (ip, mac))
 
-            # Mark devices not seen in this scan as inactive
-            cur.execute("""
-                UPDATE known_devices
-                SET status = 'inactive'
-                WHERE last_seen < NOW() - INTERVAL '5 minutes'
-            """)
-            
             self.db_conn.commit()
         except Exception as e:
             self.logger.error(f"Error processing devices: {str(e)}")
