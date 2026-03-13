@@ -28,10 +28,15 @@ try:
         
     print(f"Deploying to {working_dir}...")
     
-    print("Triggering network scan...")
-    stdin, stdout, stderr = ssh.exec_command('cd /home/orangepi/Netureon && ./venv/bin/python net_scan.py --scan-once')
-    print("Scan Output:", stdout.read().decode())
-    print("Scan Error:", stderr.read().decode())
+    print("Checking netureon_scan logs...")
+    stdin, stdout, stderr = ssh.exec_command('journalctl -u netureon_scan.service -n 50 --no-pager')
+    print("Logs:")
+    print(stdout.read().decode())
+    
+    print("Checking netureon.log...")
+    stdin, stdout, stderr = ssh.exec_command('cat /home/orangepi/Netureon/logs/netureon.log | tail -n 50')
+    print("App Logs:")
+    print(stdout.read().decode())
     
     ssh.close()
 except Exception as e:
